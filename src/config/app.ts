@@ -1,0 +1,27 @@
+export const appConfig = {
+  name: "TrọGọn",
+  dataSource: (import.meta.env.VITE_DATA_SOURCE || "local") as "local" | "api",
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || "/api/v1",
+  demoEnabled: import.meta.env.VITE_DEMO_ENABLED !== "false",
+  databaseName: "trogon-platform-v1",
+  maxImageBytes: 10 * 1024 * 1024,
+  imageMaxDimension: 1400,
+  cities: ["TP. Hồ Chí Minh", "Hà Nội", "Đà Nẵng"],
+  amenities: [
+    "Máy lạnh",
+    "Nội thất",
+    "Ban công",
+    "Gác lửng",
+    "Bếp riêng",
+    "Chỗ để xe",
+    "Giờ tự do",
+    "Thang máy",
+    "Wifi",
+  ],
+  demoPassword: "TroGon@2026",
+  demoAccounts: {
+    admin: "admin@trogon.demo",
+    owner: "chutro@trogon.demo",
+    tenant: "nguoithue@trogon.demo",
+  },
+};

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.sites-runtime/
+.env.local
+.env.*.local
+outputs/
+*.log
+*.tsbuildinfo
