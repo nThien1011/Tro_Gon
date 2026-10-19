@@ -1,0 +1,16 @@
+.git
+.openai
+.github
+node_modules
+server/node_modules
+dist
+server/dist
+outputs
+server/storage
+server/backups
+**/.env
+**/.env.*
+**/*.env
+**/*.log
+**/*.tsbuildinfo
+deploy

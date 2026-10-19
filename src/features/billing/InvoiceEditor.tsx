@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Save, Send } from "lucide-react";
+import { Save, Send, Camera } from "lucide-react";
 import { useApp } from "../../app/provider";
 import type { Invoice } from "../../domain/models";
 import { visibleRooms, buildingOf } from "../../domain/selectors";
 import { calculateInvoice } from "../../domain/billing";
 import { money, periodNow } from "../../lib/format";
 import { Modal, Field, Select } from "../../components/ui";
-import MeterField from "./MeterField";
+
 export default function InvoiceEditor({
   invoice,
   onClose,
@@ -19,35 +19,180 @@ export default function InvoiceEditor({
     (r) => r.status === "occupied",
   );
   const [roomId, setRoomId] = useState(invoice?.roomId || rooms[0]?.id || "");
-  const room = rooms.find((r) => r.id === roomId);
   const [period, setPeriod] = useState(invoice?.period || periodNow());
-  const [electricity, setElectricity] = useState(
-    invoice ? String(invoice.newElectricity) : "",
+  const room = rooms.find((r) => r.id === roomId);
+  const readings = (
+    kind: "electricity" | "water",
+    targetRoom = roomId,
+    targetPeriod = period,
+  ) =>
+    (data.meterReadings || [])
+      .filter(
+        (r) =>
+          r.roomId === targetRoom &&
+          r.period === targetPeriod &&
+          r.kind === kind &&
+          r.status === "accepted" &&
+          data.tenancies.some((t) => t.active && t.id === r.tenancyId),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const [electricityId, setElectricityId] = useState(
+    invoice?.electricityReadingId ||
+      (!invoice ? readings("electricity")[0]?.id : "") ||
+      "",
   );
-  const [water, setWater] = useState(invoice ? String(invoice.newWater) : "");
-  const [ep, setEp] = useState(invoice?.electricityPhoto || "");
-  const [wp, setWp] = useState(invoice?.waterPhoto || "");
+  const [waterId, setWaterId] = useState(
+    invoice?.waterReadingId || (!invoice ? readings("water")[0]?.id : "") || "",
+  );
+  const [electricity, setElectricity] = useState(
+    invoice
+      ? String(invoice.newElectricity)
+      : readings("electricity")[0]
+        ? String(readings("electricity")[0].value)
+        : "",
+  );
+  const [water, setWater] = useState(
+    invoice
+      ? String(invoice.newWater)
+      : readings("water")[0]
+        ? String(readings("water")[0].value)
+        : "",
+  );
+  const [ep, setEp] = useState(
+    invoice?.electricityPhoto || readings("electricity")[0]?.photo || "",
+  );
+  const [wp, setWp] = useState(
+    invoice?.waterPhoto || readings("water")[0]?.photo || "",
+  );
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [electricityBusy, setElectricityBusy] = useState(false);
-  const [waterBusy, setWaterBusy] = useState(false);
-  let total: ReturnType<typeof calculateInvoice> | null = null;
-  let error = "";
-  if (room && electricity !== "" && water !== "")
+  const electricityFixed = room?.electricityBillingMode === "fixed",
+    waterFixed = room?.waterBillingMode === "fixed";
+  const reset = (nextRoom: string, nextPeriod: string) => {
+    const er = readings("electricity", nextRoom, nextPeriod)[0],
+      wr = readings("water", nextRoom, nextPeriod)[0];
+    setElectricityId(er?.id || "");
+    setWaterId(wr?.id || "");
+    setElectricity(er ? String(er.value) : "");
+    setWater(wr ? String(wr.value) : "");
+    setEp(er?.photo || "");
+    setWp(wr?.photo || "");
+    setConfirmed(false);
+  };
+  let total: ReturnType<typeof calculateInvoice> | null = null,
+    error = "";
+  if (
+    room &&
+    (electricityFixed || electricity !== "") &&
+    (waterFixed || water !== "")
+  )
     try {
+      if (
+        (!electricityFixed &&
+          electricityId &&
+          !readings("electricity").some((r) => r.id === electricityId)) ||
+        (!waterFixed &&
+          waterId &&
+          !readings("water").some((r) => r.id === waterId))
+      )
+        throw new Error(
+          "Chỉ số đã được thay thế. Vui lòng chọn lại bản đã xác nhận.",
+        );
       total = calculateInvoice({
+        ...room,
         oldElectricity: room.electricity,
-        newElectricity: Number(electricity),
+        newElectricity: electricityFixed
+          ? room.electricity
+          : Number(electricity),
         oldWater: room.water,
-        newWater: Number(water),
-        electricityRate: room.electricityRate,
-        waterRate: room.waterRate,
-        rent: room.rent,
-        serviceFee: room.serviceFee,
+        newWater: waterFixed ? room.water : Number(water),
       });
     } catch (e) {
       error = (e as Error).message;
     }
+  const meterEditor = (kind: "electricity" | "water") => {
+    const isElectricity = kind === "electricity",
+      fixed = isElectricity ? electricityFixed : waterFixed;
+    const label = isElectricity ? "Điện" : "Nước",
+      unit = isElectricity ? "kWh" : "m³";
+    const selectedId = isElectricity ? electricityId : waterId,
+      setId = isElectricity ? setElectricityId : setWaterId;
+    const value = isElectricity ? electricity : water,
+      setValue = isElectricity ? setElectricity : setWater;
+    const photo = isElectricity ? ep : wp,
+      setPhoto = isElectricity ? setEp : setWp;
+    return (
+      <section className="meter-field" key={kind}>
+        <h3>{label}</h3>
+        {fixed ? (
+          <div className="fixed-utility">
+            <strong>
+              {money(
+                isElectricity
+                  ? room!.electricityMonthlyFee || 0
+                  : room!.waterMonthlyFee || 0,
+              )}{" "}
+              / tháng
+            </strong>
+            <p>Thu cố định mỗi tháng. Không cần chỉ số hoặc ảnh đồng hồ.</p>
+          </div>
+        ) : (
+          <>
+            <Select
+              label={`Nguồn chỉ số ${label.toLowerCase()}`}
+              value={selectedId}
+              onChange={(e) => {
+                const reading = readings(kind).find(
+                  (r) => r.id === e.target.value,
+                );
+                setId(reading?.id || "");
+                setValue(reading ? String(reading.value) : "");
+                setPhoto(reading?.photo || "");
+                setConfirmed(false);
+              }}
+            >
+              <option value="">Nhập thủ công sau khi đối chiếu</option>
+              {readings(kind).map((r) => (
+                <option value={r.id} key={r.id}>
+                  Đã xác nhận: {r.value} {unit} ·{" "}
+                  {data.users.find((u) => u.id === r.submittedBy)?.name}
+                </option>
+              ))}
+            </Select>
+            <p className="muted small-text">
+              Chỉ số cũ: {room![kind]} {unit}
+            </p>
+            <Field
+              label={`Chỉ số ${label.toLowerCase()} mới ${unit}`}
+              type="number"
+              min={room![kind]}
+              step="0.001"
+              value={value}
+              readOnly={!!selectedId}
+              required
+              onChange={(e) => {
+                setValue(e.target.value);
+                setConfirmed(false);
+              }}
+            />
+            {photo && (
+              <a href={photo} target="_blank" rel="noreferrer">
+                <img
+                  className="approved-meter-photo"
+                  src={photo}
+                  alt={`Ảnh ${label.toLowerCase()} đã xác nhận`}
+                />
+              </a>
+            )}
+            <small>
+              Chọn ảnh và chỉ số đã được xác nhận ở mục “Ảnh & chỉ số đồng hồ”.
+              OCR chỉ gợi ý số, không tự phát hành hóa đơn.
+            </small>
+          </>
+        )}
+      </section>
+    );
+  };
   return (
     <Modal
       title={invoice ? "Tiếp tục hóa đơn nháp" : "Chốt điện nước & tạo hóa đơn"}
@@ -61,38 +206,43 @@ export default function InvoiceEditor({
           const issue =
             (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") ===
             "issue";
+          if (!room || !total || busy) return;
           if (issue && !confirmed) {
             toast(
-              "Đối chiếu ảnh và xác nhận chỉ số trước khi phát hành.",
+              "Đối chiếu ảnh, chỉ số và chi phí trước khi phát hành.",
               true,
             );
             return;
           }
-          setBusy(true);
           const dueDate = String(new FormData(e.currentTarget).get("dueDate"));
-          if (
-            await execute(
-              {
-                type: "invoice.save",
-                payload: {
-                  id: invoice?.id,
-                  roomId,
-                  period,
-                  newElectricity: Number(electricity),
-                  newWater: Number(water),
-                  electricityPhoto: ep,
-                  waterPhoto: wp,
-                  issue,
-                  dueDate,
-                },
+          setBusy(true);
+          const ok = await execute(
+            {
+              type: "invoice.save",
+              payload: {
+                id: invoice?.id,
+                roomId,
+                period,
+                newElectricity: electricityFixed
+                  ? room.electricity
+                  : Number(electricity),
+                newWater: waterFixed ? room.water : Number(water),
+                electricityReadingId: electricityFixed
+                  ? undefined
+                  : electricityId || undefined,
+                waterReadingId: waterFixed ? undefined : waterId || undefined,
+                electricityPhoto: ep,
+                waterPhoto: wp,
+                issue,
+                dueDate,
               },
-              issue
-                ? "Đã phát hành hóa đơn và cập nhật chỉ số."
-                : "Đã lưu nháp hóa đơn.",
-            )
-          )
-            onClose();
+            },
+            issue
+              ? "Đã phát hành hóa đơn và gửi thông báo đến người thuê."
+              : "Đã lưu nháp hóa đơn.",
+          );
           setBusy(false);
+          if (ok) onClose();
         }}
       >
         <div className="form-grid">
@@ -100,15 +250,11 @@ export default function InvoiceEditor({
             label="Phòng đang thuê"
             value={roomId}
             disabled={!!invoice}
+            required
             onChange={(e) => {
               setRoomId(e.target.value);
-              setElectricity("");
-              setWater("");
-              setEp("");
-              setWp("");
-              setConfirmed(false);
+              reset(e.target.value, period);
             }}
-            required
           >
             <option value="">Chọn phòng</option>
             {rooms.map((r) => (
@@ -121,43 +267,34 @@ export default function InvoiceEditor({
             label="Kỳ hóa đơn"
             type="month"
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
             required
+            onChange={(e) => {
+              setPeriod(e.target.value);
+              reset(roomId, e.target.value);
+            }}
           />
         </div>
         {room ? (
           <>
+            <div className="sharing-note">
+              Ảnh gửi từ người thuê và chủ trọ được lưu chung theo kỳ.{" "}
+              <button
+                type="button"
+                className="btn text small"
+                onClick={() => {
+                  onClose();
+                  document
+                    .getElementById("meter-readings")
+                    ?.scrollIntoView({ block: "start" });
+                }}
+              >
+                <Camera size={16} />
+                Mở mục gửi ảnh đồng hồ
+              </button>
+            </div>
             <div className="meter-grid">
-              <MeterField
-                kind="electricity"
-                previous={room.electricity}
-                value={electricity}
-                photo={ep}
-                onValue={(v) => {
-                  setElectricity(v);
-                  setConfirmed(false);
-                }}
-                onPhoto={(photo) => {
-                  setEp(photo);
-                  setConfirmed(false);
-                }}
-                onBusy={setElectricityBusy}
-              />
-              <MeterField
-                kind="water"
-                previous={room.water}
-                value={water}
-                photo={wp}
-                onValue={(v) => {
-                  setWater(v);
-                  setConfirmed(false);
-                }}
-                onPhoto={(photo) => {
-                  setWp(photo);
-                  setConfirmed(false);
-                }}
-                onBusy={setWaterBusy}
-              />
+              {meterEditor("electricity")}
+              {meterEditor("water")}
             </div>
             {error && <p className="error-text">{error}</p>}
             <div className="invoice-preview">
@@ -168,23 +305,27 @@ export default function InvoiceEditor({
               <div>
                 <span>
                   Điện{" "}
-                  {total
-                    ? `${total.electricityUsed} kWh × ${money(room.electricityRate)}`
-                    : ""}
+                  {electricityFixed
+                    ? "· cố định/tháng"
+                    : total
+                      ? `· ${total.electricityUsed} kWh × ${money(room.electricityRate)}`
+                      : ""}
                 </span>
                 <strong>{total ? money(total.electricity) : "—"}</strong>
               </div>
               <div>
                 <span>
                   Nước{" "}
-                  {total
-                    ? `${total.waterUsed} m³ × ${money(room.waterRate)}`
-                    : ""}
+                  {waterFixed
+                    ? "· cố định/tháng"
+                    : total
+                      ? `· ${total.waterUsed} m³ × ${money(room.waterRate)}`
+                      : ""}
                 </span>
                 <strong>{total ? money(total.water) : "—"}</strong>
               </div>
               <div>
-                <span>Phí dịch vụ cố định</span>
+                <span>Phí dịch vụ</span>
                 <strong>{money(room.serviceFee)}</strong>
               </div>
               <div className="invoice-total">
@@ -213,7 +354,7 @@ export default function InvoiceEditor({
             <div className="form-actions">
               <button
                 value="draft"
-                disabled={busy || electricityBusy || waterBusy || !total}
+                disabled={busy || !total}
                 className="btn secondary"
               >
                 <Save size={16} />
@@ -221,7 +362,7 @@ export default function InvoiceEditor({
               </button>
               <button
                 value="issue"
-                disabled={busy || electricityBusy || waterBusy || !total}
+                disabled={busy || !total}
                 className="btn primary"
               >
                 <Send size={16} />

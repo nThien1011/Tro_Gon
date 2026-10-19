@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Eye,
@@ -16,11 +16,30 @@ import { PageTitle, Stat, Status, Empty } from "../../components/ui";
 import type { Invoice } from "../../domain/models";
 import InvoiceEditor from "./InvoiceEditor";
 import InvoiceDetail from "./InvoiceDetail";
+import MeterReadingsPanel from "./MeterReadingsPanel";
 export default function BillingPage() {
   const { data, user, execute } = useApp();
   const [editor, setEditor] = useState<Invoice | null>();
   const [selected, setSelected] = useState<string>();
   const [status, setStatus] = useState("");
+  const invoiceFromUrl = new URLSearchParams(location.hash.split("?")[1]).get(
+    "invoice",
+  );
+  const tabFromUrl = new URLSearchParams(location.hash.split("?")[1]).get(
+    "tab",
+  );
+  const openFromUrl = new URLSearchParams(location.hash.split("?")[1]).get(
+    "open",
+  );
+  useEffect(() => {
+    if (invoiceFromUrl) setSelected(invoiceFromUrl);
+  }, [invoiceFromUrl, openFromUrl]);
+  useEffect(() => {
+    if (tabFromUrl === "meters")
+      document
+        .getElementById("meter-readings")
+        ?.scrollIntoView({ block: "start" });
+  }, [tabFromUrl, openFromUrl]);
   if (!user) return null;
   const rooms = visibleRooms(data, user),
     all = data.invoices.filter(
@@ -76,6 +95,7 @@ export default function BillingPage() {
         />
         <Stat label="Tổng hóa đơn" value={all.length} icon={<FileText />} />
       </div>
+      <MeterReadingsPanel />
       <div className="tabs">
         {[
           ["", "Tất cả"],
@@ -121,8 +141,14 @@ export default function BillingPage() {
                     </td>
                     <td>{u.name}</td>
                     <td>
-                      {total.electricityUsed} kWh
-                      <small>{total.waterUsed} m³</small>
+                      {i.electricityBillingMode === "fixed"
+                        ? "Điện cố định/tháng"
+                        : `${total.electricityUsed} kWh`}
+                      <small>
+                        {i.waterBillingMode === "fixed"
+                          ? "Nước cố định/tháng"
+                          : `${total.waterUsed} m³`}
+                      </small>
                     </td>
                     <td>
                       <strong>{money(total.total)}</strong>

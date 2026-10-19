@@ -4,7 +4,7 @@ import { useApp } from "../../app/provider";
 import type { Invoice } from "../../domain/models";
 import { calculateInvoice } from "../../domain/billing";
 import { money, dateText } from "../../lib/format";
-import { Modal, Status } from "../../components/ui";
+import { Modal, Status, Textarea } from "../../components/ui";
 import { createQr } from "../../services/qr";
 export default function InvoiceDetail({
   invoice,
@@ -16,6 +16,8 @@ export default function InvoiceDetail({
   const { data, user, execute, toast } = useApp();
   const [qr, setQr] = useState("");
   const [qrError, setQrError] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
   const room = data.rooms.find((r) => r.id === invoice.roomId)!,
     building = data.buildings.find((b) => b.id === room.buildingId)!,
     renter = data.users.find((u) => u.id === invoice.tenantId)!;
@@ -59,9 +61,15 @@ export default function InvoiceDetail({
           <div>
             <strong>Điện</strong>
             <span>
-              {invoice.oldElectricity} → {invoice.newElectricity} kWh
+              {invoice.electricityBillingMode === "fixed"
+                ? "Cố định theo tháng"
+                : `${invoice.oldElectricity} → ${invoice.newElectricity} kWh`}
             </span>
-            <small>Sử dụng {totals.electricityUsed} kWh</small>
+            <small>
+              {invoice.electricityBillingMode === "fixed"
+                ? money(totals.electricity)
+                : `Sử dụng ${totals.electricityUsed} kWh`}
+            </small>
             {invoice.electricityPhoto && (
               <a
                 href={invoice.electricityPhoto}
@@ -78,9 +86,15 @@ export default function InvoiceDetail({
           <div>
             <strong>Nước</strong>
             <span>
-              {invoice.oldWater} → {invoice.newWater} m³
+              {invoice.waterBillingMode === "fixed"
+                ? "Cố định theo tháng"
+                : `${invoice.oldWater} → ${invoice.newWater} m³`}
             </span>
-            <small>Sử dụng {totals.waterUsed} m³</small>
+            <small>
+              {invoice.waterBillingMode === "fixed"
+                ? money(totals.water)
+                : `Sử dụng ${totals.waterUsed} m³`}
+            </small>
             {invoice.waterPhoto && (
               <a href={invoice.waterPhoto} target="_blank" rel="noreferrer">
                 <img
@@ -98,13 +112,19 @@ export default function InvoiceDetail({
           </div>
           <div>
             <span>
-              Điện · {totals.electricityUsed} × {money(invoice.electricityRate)}
+              Điện ·{" "}
+              {invoice.electricityBillingMode === "fixed"
+                ? "cố định/tháng"
+                : `${totals.electricityUsed} × ${money(invoice.electricityRate)}`}
             </span>
             <strong>{money(totals.electricity)}</strong>
           </div>
           <div>
             <span>
-              Nước · {totals.waterUsed} × {money(invoice.waterRate)}
+              Nước ·{" "}
+              {invoice.waterBillingMode === "fixed"
+                ? "cố định/tháng"
+                : `${totals.waterUsed} × ${money(invoice.waterRate)}`}
             </span>
             <strong>{money(totals.water)}</strong>
           </div>
@@ -180,6 +200,14 @@ export default function InvoiceDetail({
         )}
         {invoice.status === "issued" && invoice.paymentStatus !== "paid" && (
           <div className="form-actions">
+            {user?.role !== "tenant" && invoice.paymentStatus === "pending" && (
+              <button
+                className="btn secondary"
+                onClick={() => setRejecting(!rejecting)}
+              >
+                Chưa nhận được tiền
+              </button>
+            )}
             {user?.role === "tenant" ? (
               <button
                 disabled={invoice.paymentStatus === "pending"}
@@ -214,6 +242,39 @@ export default function InvoiceDetail({
               </button>
             )}
           </div>
+        )}
+        {rejecting && invoice.paymentStatus === "pending" && (
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (
+                await execute(
+                  {
+                    type: "payment.reject",
+                    payload: { id: invoice.id, reason },
+                  },
+                  "Đã phản hồi cho người thuê.",
+                )
+              ) {
+                setRejecting(false);
+                setReason("");
+              }
+            }}
+          >
+            <Textarea
+              label="Lý do chưa xác nhận"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              required
+            />
+            <button className="btn secondary">Gửi phản hồi</button>
+          </form>
+        )}
+        {invoice.paymentNote && (
+          <p className="error-text">
+            Phản hồi của chủ trọ: {invoice.paymentNote}
+          </p>
         )}
         {invoice.paymentStatus === "paid" && (
           <p className="success-text">

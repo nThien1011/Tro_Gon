@@ -5,6 +5,9 @@ import { PublicLayout, AppLayout } from "../components/layout";
 import { Empty } from "../components/ui";
 import ExplorePage from "../features/explore/ExplorePage";
 const AuthPage = lazy(() => import("../features/auth/AuthPage"));
+const ResetPasswordPage = lazy(
+  () => import("../features/auth/ResetPasswordPage"),
+);
 const RoomDetail = lazy(() => import("../features/explore/RoomDetail"));
 const DashboardPage = lazy(() => import("../features/dashboard/DashboardPage"));
 const BuildingsPage = lazy(() => import("../features/owner/BuildingsPage"));
@@ -143,6 +146,7 @@ export default function App() {
     content = (
       <AuthPage key={path} route={route} register={path === "/register"} />
     );
+  else if (path === "/reset-password") content = <ResetPasswordPage />;
   else if (path.startsWith("/app"))
     content = <ProtectedContent route={route} />;
   else

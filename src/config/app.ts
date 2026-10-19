@@ -1,12 +1,11 @@
 export const appConfig = {
   name: "TrọGọn",
-  dataSource: (import.meta.env.VITE_DATA_SOURCE || "local") as "local" | "api",
+  dataSource: (import.meta.env.VITE_DATA_SOURCE || "api") as "local" | "api",
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || "/api/v1",
-  demoEnabled: import.meta.env.VITE_DEMO_ENABLED !== "false",
+  demoEnabled: import.meta.env.VITE_DEMO_ENABLED === "true",
   databaseName: "trogon-platform-v1",
   maxImageBytes: 10 * 1024 * 1024,
   imageMaxDimension: 1400,
-  cities: ["TP. Hồ Chí Minh", "Hà Nội", "Đà Nẵng"],
   amenities: [
     "Máy lạnh",
     "Nội thất",

@@ -5,6 +5,8 @@ import { client } from "../../services/client";
 import { PageTitle, Field, Select, formValues } from "../../components/ui";
 import { initials } from "../../lib/format";
 import { roleLabels } from "../../domain/models";
+import { appConfig } from "../../config/app";
+import ContactVerification from "./ContactVerification";
 export default function AccountPage() {
   const { user, execute, task } = useApp();
   const [busy, setBusy] = useState(false);
@@ -23,6 +25,7 @@ export default function AccountPage() {
           <small>{user.email || user.phone}</small>
         </aside>
         <div>
+          {appConfig.dataSource === "api" && <ContactVerification />}
           <form
             className="panel padded"
             onSubmit={async (e) => {

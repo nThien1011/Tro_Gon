@@ -1,4 +1,5 @@
 export type Role = "admin" | "owner" | "tenant";
+export type UtilityBillingMode = "metered" | "fixed";
 export type User = {
   id: string;
   name: string;
@@ -6,6 +7,8 @@ export type User = {
   phone: string;
   role: Role;
   active: boolean;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
   avatar?: string;
   bankBin?: string;
   bankAccount?: string;
@@ -18,8 +21,13 @@ export type Building = {
   address: string;
   area: string;
   city: string;
-  lat: number;
-  lng: number;
+  cityCode?: string;
+  districtCode?: string;
+  wardCode?: string;
+  district?: string;
+  ward?: string;
+  lat?: number;
+  lng?: number;
   description: string;
 };
 export type Room = {
@@ -31,6 +39,10 @@ export type Room = {
   rent: number;
   electricityRate: number;
   waterRate: number;
+  electricityBillingMode?: UtilityBillingMode;
+  waterBillingMode?: UtilityBillingMode;
+  electricityMonthlyFee?: number;
+  waterMonthlyFee?: number;
   serviceFee: number;
   deposit: number;
   electricity: number;
@@ -72,6 +84,12 @@ export type Invoice = {
   newWater: number;
   electricityRate: number;
   waterRate: number;
+  electricityBillingMode?: UtilityBillingMode;
+  waterBillingMode?: UtilityBillingMode;
+  electricityMonthlyFee?: number;
+  waterMonthlyFee?: number;
+  electricityReadingId?: string;
+  waterReadingId?: string;
   rent: number;
   serviceFee: number;
   electricityPhoto?: string;
@@ -81,6 +99,7 @@ export type Invoice = {
   createdAt: string;
   dueDate: string;
   paidAt?: string;
+  paymentNote?: string;
   bankBin?: string;
   bankAccount?: string;
   bankName?: string;
@@ -126,6 +145,36 @@ export type Audit = {
   action: string;
   createdAt: string;
 };
+export type Notification = {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  href: string;
+  createdAt: string;
+  readAt?: string;
+};
+export type MeterReading = {
+  id: string;
+  roomId: string;
+  tenancyId: string;
+  tenantId: string;
+  submittedBy: string;
+  kind: "electricity" | "water";
+  period: string;
+  previous: number;
+  value: number;
+  photo: string;
+  ocrValue?: number;
+  ocrConfidence?: number;
+  ocrText?: string;
+  status: "pending" | "accepted" | "rejected" | "superseded";
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reason?: string;
+};
 export type Settings = {
   siteName: string;
   supportEmail: string;
@@ -148,6 +197,8 @@ export type Snapshot = {
   tickets: SupportTicket[];
   favorites: { userId: string; listingId: string }[];
   audit: Audit[];
+  notifications: Notification[];
+  meterReadings: MeterReading[];
   settings: Settings;
 };
 export type Credential = { userId: string; salt: string; hash: string };

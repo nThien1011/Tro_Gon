@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Building, Listing, Room } from "../../domain/models";
 import { compactMoney } from "../../lib/format";
+import { hasCoordinates } from "../../config/locations";
 export default function RoomMap({
   items,
   position,
@@ -24,6 +25,7 @@ export default function RoomMap({
     }).addTo(map);
     const bounds: L.LatLngExpression[] = [];
     items.forEach(({ room, building, listing }) => {
+      if (!hasCoordinates(building)) return;
       const latlng: L.LatLngExpression = [building.lat, building.lng];
       bounds.push(latlng);
       const icon = L.divIcon({

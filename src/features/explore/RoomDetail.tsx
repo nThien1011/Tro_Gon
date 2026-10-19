@@ -15,6 +15,8 @@ import { useApp } from "../../app/provider";
 import { buildingOf, ownerOf } from "../../domain/selectors";
 import { money, dateText, initials } from "../../lib/format";
 import { navigate } from "../../app/router";
+import { buildingAddress, hasCoordinates } from "../../config/locations";
+import { appConfig } from "../../config/app";
 import {
   Empty,
   Badge,
@@ -68,12 +70,16 @@ export default function RoomDetail({ id }: { id: string }) {
       <div className="detail-title">
         <div>
           <Badge tone={available ? "green" : "gray"}>
-            {available ? "Còn nhận khách · Dữ liệu mẫu" : "Đã ngừng nhận khách"}
+            {available
+              ? appConfig.dataSource === "local"
+                ? "Còn nhận khách · Dữ liệu mẫu"
+                : "Còn nhận khách"
+              : "Đã ngừng nhận khách"}
           </Badge>
           <h1>{listing.title}</h1>
           <p>
             <MapPin size={17} />
-            {building.address}, {building.area}, {building.city}
+            {buildingAddress(building)}
           </p>
         </div>
         <div className="detail-price">
@@ -86,7 +92,9 @@ export default function RoomDetail({ id }: { id: string }) {
           (src, i) => (
             <button key={i} onClick={() => setImage(src)}>
               <img src={src} alt={`Góc nhìn phòng ${i + 1}`} />
-              {i === 0 && <span>Ảnh minh họa</span>}
+              {i === 0 && appConfig.dataSource === "local" && (
+                <span>Ảnh minh họa</span>
+              )}
             </button>
           ),
         )}
@@ -104,7 +112,10 @@ export default function RoomDetail({ id }: { id: string }) {
             </span>
             <span>
               <MapPin />
-              <strong>{building.area}</strong>Khu vực
+              <strong>
+                {building.ward || building.district || building.area}
+              </strong>
+              Khu vực
             </span>
           </div>
           <section className="detail-section">
@@ -128,8 +139,22 @@ export default function RoomDetail({ id }: { id: string }) {
             <div className="fee-table">
               {[
                 ["Tiền phòng hàng tháng", money(room.rent)],
-                ["Điện theo công tơ", `${money(room.electricityRate)} / kWh`],
-                ["Nước theo đồng hồ", `${money(room.waterRate)} / m³`],
+                [
+                  room.electricityBillingMode === "fixed"
+                    ? "Điện cố định"
+                    : "Điện theo công tơ",
+                  room.electricityBillingMode === "fixed"
+                    ? `${money(room.electricityMonthlyFee || 0)} / tháng`
+                    : `${money(room.electricityRate)} / kWh`,
+                ],
+                [
+                  room.waterBillingMode === "fixed"
+                    ? "Nước cố định"
+                    : "Nước theo đồng hồ",
+                  room.waterBillingMode === "fixed"
+                    ? `${money(room.waterMonthlyFee || 0)} / tháng`
+                    : `${money(room.waterRate)} / m³`,
+                ],
                 ["Phí dịch vụ cố định", `${money(room.serviceFee)} / tháng`],
                 ["Tiền cọc dự kiến", money(room.deposit)],
               ].map(([a, b]) => (
@@ -150,16 +175,16 @@ export default function RoomDetail({ id }: { id: string }) {
               <MapPin size={28} />
               <div>
                 <strong>{building.name}</strong>
-                <p>
-                  {building.address}, {building.area}, {building.city}
-                </p>
-                <a
-                  target="_blank"
-                  rel="noreferrer"
-                  href={`https://www.openstreetmap.org/?mlat=${building.lat}&mlon=${building.lng}#map=16/${building.lat}/${building.lng}`}
-                >
-                  Mở vị trí trên bản đồ ↗
-                </a>
+                <p>{buildingAddress(building)}</p>
+                {hasCoordinates(building) && (
+                  <a
+                    target="_blank"
+                    rel="noreferrer"
+                    href={`https://www.openstreetmap.org/?mlat=${building.lat}&mlon=${building.lng}#map=16/${building.lat}/${building.lng}`}
+                  >
+                    Mở vị trí trên bản đồ ↗
+                  </a>
+                )}
               </div>
             </div>
           </section>
@@ -171,7 +196,11 @@ export default function RoomDetail({ id }: { id: string }) {
               <span className="avatar large">{initials(owner.name)}</span>
               <div>
                 <h3>{owner.name}</h3>
-                <span>Chủ trọ · Tài khoản mẫu</span>
+                <span>
+                  {appConfig.dataSource === "local"
+                    ? "Chủ trọ · Tài khoản mẫu"
+                    : "Chủ trọ"}
+                </span>
               </div>
             </div>
             <p>

@@ -11,6 +11,8 @@ import { navigate } from "../../app/router";
 import type { Listing } from "../../domain/models";
 import { buildingOf } from "../../domain/selectors";
 import { compactMoney } from "../../lib/format";
+import { buildingAddress } from "../../config/locations";
+import { appConfig } from "../../config/app";
 export default function RoomCard({
   listing,
   distance,
@@ -38,7 +40,9 @@ export default function RoomCard({
         <span className="photo-badge">
           {distance !== undefined
             ? `${distance.toFixed(1)} km từ bạn`
-            : "Phòng mẫu · Còn trống"}
+            : appConfig.dataSource === "local"
+              ? "Phòng mẫu · Còn trống"
+              : "Còn trống"}
         </span>
         <button
           className={`favorite-btn ${saved ? "saved" : ""}`}
@@ -64,7 +68,7 @@ export default function RoomCard({
       <div className="room-card-body">
         <p className="room-card-location">
           <MapPin size={14} />
-          {building.area}, {building.city}
+          {buildingAddress(building, false)}
         </p>
         <h3>
           <a href={`#/room/${listing.id}`}>{listing.title}</a>

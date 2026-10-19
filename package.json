@@ -5,6 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:full": "node scripts/dev.mjs",
+    "check:server": "node server/node_modules/typescript/bin/tsc --noEmit -p server/tsconfig.json",
+    "check:deploy": "node scripts/validate-deploy.mjs",
+    "test:server": "node server/node_modules/tsx/dist/cli.mjs --test server/tests/*.test.ts",
+    "test:integration": "node server/node_modules/tsx/dist/cli.mjs --test server/tests/integration/*.test.ts",
+    "db:migrate": "node server/node_modules/tsx/dist/cli.mjs server/src/cli.ts migrate",
+    "db:migrate:local": "node server/node_modules/tsx/dist/cli.mjs scripts/migrate-local.mjs",
+    "db:seed": "node server/node_modules/tsx/dist/cli.mjs server/src/cli.ts seed-demo",
+    "db:backup": "node server/node_modules/tsx/dist/cli.mjs server/src/backup.ts",
+    "db:verify-backup": "node server/node_modules/tsx/dist/cli.mjs server/src/verify-backup.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts"

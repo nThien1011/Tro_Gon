@@ -18,7 +18,12 @@ import {
   Textarea,
   formValues,
 } from "../../components/ui";
-import { appConfig } from "../../config/app";
+import LocationSelects from "../../components/LocationSelects";
+import {
+  buildingAddress,
+  buildingLocationCodes,
+  emptyLocation,
+} from "../../config/locations";
 export default function BuildingsPage() {
   const { data, user, execute } = useApp();
   const [editing, setEditing] = useState<Building | null>();
@@ -62,7 +67,7 @@ export default function BuildingsPage() {
                 </div>
                 <p>
                   <MapPin size={14} />
-                  {b.address}, {b.area}
+                  {buildingAddress(b)}
                 </p>
                 <div className="building-numbers">
                   <span>
@@ -163,61 +168,17 @@ export default function BuildingsPage() {
                   ))}
               </Select>
             )}
-            <div className="form-grid">
-              <Select
-                label="Thành phố"
-                name="city"
-                defaultValue={editing?.city || appConfig.cities[0]}
-                required
-              >
-                {[
-                  ...new Set([
-                    ...appConfig.cities,
-                    ...buildings.map((b) => b.city),
-                  ]),
-                ].map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </Select>
-              <Field
-                label="Khu vực"
-                name="area"
-                defaultValue={editing?.area}
-                placeholder="Tên khu vực"
-                required
-              />
-            </div>
+            <BuildingLocationFields
+              key={editing?.id || "new"}
+              building={editing}
+            />
             <Field
-              label="Địa chỉ"
+              label="Số nhà, tên đường"
               name="address"
               defaultValue={editing?.address}
+              placeholder="Ví dụ: 25 đường Trường Sa"
               required
             />
-            <div className="form-grid">
-              <Field
-                label="Vĩ độ"
-                name="lat"
-                type="number"
-                step="any"
-                min={-90}
-                max={90}
-                defaultValue={editing?.lat || 10.8035}
-                required
-              />
-              <Field
-                label="Kinh độ"
-                name="lng"
-                type="number"
-                step="any"
-                min={-180}
-                max={180}
-                defaultValue={editing?.lng || 106.7144}
-                required
-              />
-            </div>
-            <p className="muted small-text">
-              Tọa độ được dùng để hiển thị bản đồ và tìm phòng gần người thuê.
-            </p>
             <Textarea
               label="Giới thiệu tòa nhà"
               name="description"
@@ -231,4 +192,11 @@ export default function BuildingsPage() {
       )}
     </>
   );
+}
+
+function BuildingLocationFields({ building }: { building: Building | null }) {
+  const [location, setLocation] = useState(() =>
+    building ? buildingLocationCodes(building) : emptyLocation,
+  );
+  return <LocationSelects value={location} onChange={setLocation} required />;
 }

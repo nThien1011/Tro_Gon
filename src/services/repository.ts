@@ -60,7 +60,14 @@ export const repository = {
         .transaction("state")
         .objectStore("state")
         .get("main");
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const value = req.result;
+        if (value) {
+          value.notifications ||= [];
+          value.meterReadings ||= [];
+        }
+        resolve(value);
+      };
       req.onerror = () => reject(req.error);
     });
   },

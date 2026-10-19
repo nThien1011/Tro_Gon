@@ -1,123 +1,115 @@
 # TrọGọn
 
-Frontend cho nền tảng kết nối người thuê và chủ trọ, gồm guest và ba vai trò tài khoản: admin, chủ trọ, người thuê. Giao diện tiếng Việt, responsive, chia màn hình theo nghiệp vụ và tải từng nhóm tính năng khi cần.
+Nền tảng kết nối người thuê và chủ trọ, gồm guest và ba vai trò: admin, chủ trọ, người thuê. Frontend React + TypeScript; backend Node.js + Fastify + TypeScript; database MySQL 8. Ảnh lưu riêng và được kiểm tra quyền khi đọc.
 
-## Trạng thái sản phẩm
-
-Đây là **frontend có các luồng hoạt động và dữ liệu IndexedDB**, chưa phải hệ thống nhiều người dùng trên máy chủ. Dữ liệu có thể tồn tại sau khi tải lại trên cùng trình duyệt, nhưng không đồng bộ giữa thiết bị. Không dùng tài khoản hoặc dữ liệu nhạy cảm thật trong chế độ local. Phân quyền client giúp kiểm tra nghiệp vụ, không phải ranh giới bảo mật production.
-
-`trogon-preorder` bên cạnh là công việc khảo sát cũ đã tạm dừng. Dự án hiện tại độc lập tại `trogon-platform`.
-
-## Chạy dự án
-
-Cần Node.js 22.13 trở lên và npm.
-
-```sh
-npm install
-npm run dev
-```
-
-Nếu các dependencies đã có nhưng máy chỉ có Node, dùng PowerShell:
+## Chạy localhost trên máy này
 
 ```powershell
-.\scripts\dev.ps1
+cd D:\EXE101\trogon-platform
+.\scripts\start.ps1
 ```
+
+Hoặc `npm run dev:full`. Mở http://127.0.0.1:5173. API chạy cổng 8080, Vite chuyển tiếp `/api` cùng origin. Ctrl+C dừng cả hai. Nhật ký API ở `outputs/api.log`. MySQL service phải đang chạy.
+
+`server/.env` chứa kết nối riêng của máy, không đưa lên Git hoặc chia sẻ. Runtime account local chỉ có quyền đọc/ghi database TrọGọn. `server/.env.test` chứa tài khoản riêng cho các database kiểm thử.
+
+## Tài khoản mẫu local
+
+Mật khẩu chung: `TroGon@2026`.
+
+| Vai trò    | Email                 |
+| ---------- | --------------------- |
+| Admin      | admin@trogon.demo     |
+| Chủ trọ    | chutro@trogon.demo    |
+| Người thuê | nguoithue@trogon.demo |
+
+Tài khoản đăng nhập qua API và được lưu trong MySQL. Không có nút đổi vai trò ở chế độ API. Production từ chối database có marker chứa dữ liệu demo.
+
+Máy local đang dùng `MAIL_TRANSPORT=file` để thử xác minh/reset mà không gửi thư thật. Mã nằm trong `server/storage/outbox/<challengeId>.json`, chỉ người có quyền truy cập máy đọc được. Khi deploy cần SMTP/SMS thật; production không cho dùng chế độ file.
+
+## Cài máy mới
+
+Cần Node.js 24 LTS (tối thiểu 22.13), npm và MySQL 8.0.16+.
 
 ```sh
-npm test
-npm run build
-npm run preview
+npm ci
+npm ci --prefix server
 ```
 
-Mở URL được Vite in ra. Định tuyến dạng `#/...` cho phép reload và mở trực tiếp trên hosting tĩnh.
+1. Sao chép `.env.example` thành `.env.local`; giữ data source `api` và base URL `/api/v1`.
+2. Sao chép `server/.env.example` thành `server/.env`, điền kết nối tới database **riêng cho TrọGọn**. Lần đầu dùng tài khoản có quyền tạo database và bảng. Migration từ chối database có bảng không thuộc dự án.
+3. Chạy `npm run db:migrate`. Với database sạch, đặt BOOTSTRAP_ADMIN_EMAIL/PASSWORD trước khi migrate để tạo admin. Với bản thử local, `npm run db:seed` chỉ chạy khi chưa có người dùng.
+4. Có thể chạy `node server/node_modules/tsx/dist/cli.mjs server/src/cli.ts provision-local` bằng kết nối quản trị localhost để tạo tài khoản ứng dụng và kiểm thử riêng; chương trình không sửa tài khoản MySQL đã tồn tại.
+5. Chạy `npm run dev:full`.
 
-## Tài khoản mẫu
+IndexedDB cũ vẫn giữ nguyên, không tự nhập vào MySQL. Muốn xuất/đối chiếu dữ liệu cũ có thể mở lại với `VITE_DATA_SOURCE=local`; không dùng chế độ này cho production.
 
-| Vai trò    | Email                 | Mật khẩu dữ liệu khởi tạo |
-| ---------- | --------------------- | ------------------------- |
-| Admin      | admin@trogon.demo     | TroGon@2026               |
-| Chủ trọ    | chutro@trogon.demo    | TroGon@2026               |
-| Người thuê | nguoithue@trogon.demo | TroGon@2026               |
+## Chức năng
 
-Trang đăng nhập có nút vào từng vai trò. Sidebar có lựa chọn đổi vai trò mẫu để kiểm tra hai phía. Có thể tự đăng ký chủ trọ hoặc người thuê bằng email, số điện thoại hoặc cả hai. Không tự đăng ký admin. Người thuê mẫu đang ở P201; dùng tài khoản người thuê mới để kiểm tra thêm vào phòng hoặc xác nhận thuê mới.
+- Guest tìm phòng qua tỉnh/thành → quận/huyện → phường/xã, ngân sách, diện tích, tiện ích; xem ảnh và phí.
+- Đăng ký email/điện thoại, cookie HttpOnly, cập nhật hồ sơ, đổi mật khẩu, xác minh và khôi phục tài khoản bằng mã dùng một lần. Không tự đăng ký admin.
+- Chủ trọ quản lý tòa nhà/phòng, chỉ số, giá, ảnh và tin đăng; thêm người thuê đã đăng ký; bàn giao sau khi đối chiếu khoản thu.
+- Người thuê lưu phòng, nhắn tin, đặt lịch, gửi yêu cầu thuê; xác nhận sau khi chủ trọ chấp thuận; xem phòng/hóa đơn, báo đã thanh toán và gửi sửa chữa.
+- Admin duyệt/gỡ tin, khóa/mở tài khoản và thu hồi phiên, xử lý báo cáo, cấu hình và nhật ký.
+- OCR thật bằng Tesseract trong trình duyệt; người dùng kiểm tra chỉ số. **Server tính lại hóa đơn từ số cũ và giá trong MySQL**, giữ snapshot đơn giá/người thuê/ngân hàng. Phát hành, lưu nháp, hủy có kiểm tra; chủ trọ xác nhận tiền hoặc phản hồi chưa nhận được.
+- Ảnh đồng hồ bảo vệ theo tài khoản/tài nguyên. QR VietQR không tự thực hiện chuyển tiền.
+- Chuông thông báo theo người nhận, chưa đọc/đã đọc lưu ở MySQL; mở đúng nội dung liên quan.
+- Điện và nước chọn độc lập theo đồng hồ hoặc cố định/tháng. Hai bên gửi ảnh và cùng xem kết quả theo kỳ; người thuê gửi cần chủ trọ duyệt. Xem [hướng dẫn thông báo & điện nước](docs/NOTIFICATIONS_AND_METERS.md).
+- Giao diện kiểm tra phiên và phiên bản dữ liệu mỗi 5 giây khi tab hoạt động, cập nhật dữ liệu giữa thiết bị qua API.
 
-## Các chức năng đã có
-
-- Guest: tìm theo thành phố/khu vực/tên đường, lọc ngân sách, diện tích, tiện ích; sắp xếp, xem bản đồ và tìm gần vị trí có cấp quyền; xem ảnh, mô tả, giá và phí.
-- Tài khoản: đăng ký, đăng nhập bằng email hoặc điện thoại, kiểm tra trùng, cập nhật hồ sơ, đổi mật khẩu thử nghiệm. Mật khẩu được băm PBKDF2 với salt riêng trong local repository; đây không thay thế máy chủ xác thực.
-- Chủ trọ: CRUD tòa nhà và phòng; đặt giá, phí, sức chứa, chỉ số gốc, hình ảnh và tiện ích; soạn tin nháp và gửi duyệt; thêm người thuê đã đăng ký bằng liên hệ; kết thúc thuê sau đối chiếu hóa đơn.
-- Người thuê: lưu phòng, nhắn tin, đặt lịch xem, gửi/hủy yêu cầu thuê và xác nhận sau khi chủ trọ chấp thuận; xem phòng đang ở, kỳ thuê, chi phí và hóa đơn; gửi báo đã trả; gửi sửa chữa hoặc báo cáo.
-- Admin: duyệt/gỡ tin kèm lý do, khóa/mở khóa tài khoản, xem tòa nhà và phòng, hóa đơn, xử lý báo cáo, cấu hình đơn giá mặc định và xem/xuất nhật ký.
-- Hóa đơn: OCR ảnh điện/nước thật bằng Tesseract.js trong trình duyệt; gợi ý số và độ tin cậy; xác nhận số, tự tính chênh lệch và tiền; lưu nháp, phát hành, hủy khi được phép, giữ snapshot giá, tạo QR nếu có ngân hàng, tách thông báo trả tiền khỏi xác nhận đã thu.
-- Tin nhắn và các thao tác liên quan chia sẻ cùng IndexedDB; BroadcastChannel cập nhật dữ liệu giữa các tab cùng origin. Chuyển vai trò mẫu để trả lời từ phía bên kia.
-
-## Cấu trúc
+## Thư mục
 
 ```text
 src/
-  app/                 # provider, router và phân phối màn hình theo vai trò
-  components/          # layout và UI dùng chung
-  config/app.ts        # cấu hình, tiện ích, thành phố và tài khoản mẫu
-  domain/
-    models.ts          # kiểu dữ liệu nghiệp vụ
-    commands.ts        # quy tắc thay đổi dữ liệu và kiểm tra quyền
-    billing.ts         # phép tính hóa đơn và phân tích kết quả OCR
-    selectors.ts       # phạm vi phòng theo vai trò
-    seed.ts            # dữ liệu minh họa, không phải phòng thật
-  features/
-    explore/           # tìm phòng, chi tiết, bản đồ
-    auth/              # đăng nhập, đăng ký
-    dashboard/         # tổng quan theo vai trò
-    owner/             # tòa nhà, phòng, tin đăng và người ở
-    tenant/            # không gian phòng đang thuê
-    billing/           # OCR, biên soạn và xem hóa đơn
-    rental/            # lịch xem và yêu cầu thuê
-    messaging/         # hội thoại
-    support/           # sửa chữa, báo cáo, phản hồi
-    account/           # thông tin tài khoản và ngân hàng
-    admin/             # người dùng, cấu hình, nhật ký
-    info/              # hướng dẫn và thông tin riêng tư
-  services/
-    client.ts          # hợp đồng AppClient, adapter local và HTTP
-    repository.ts      # IndexedDB, cập nhật nguyên tử, subscribe
-    ocr.ts             # Tesseract và vòng đời worker
-    media.ts           # kiểm tra và nén ảnh
-    qr.ts              # EMV VietQR và CRC
-  lib/                 # format, khoảng cách, password hash
-  styles/              # global, public và workspace
-tests/                 # kiểm thử quy tắc tiền, quyền và trạng thái
-docs/                  # kiến trúc, API contract và kiểm thử
-public/images/         # ảnh minh họa đã tải về
+  app/                  provider, router và phân phối màn hình
+  components/           UI chung và bộ chọn khu vực
+  features/             auth, explore, owner, tenant, billing, admin...
+  domain/               model, tính tiền và quy tắc dùng chung
+  config/, data/        cấu hình và danh mục khu vực
+  services/             HTTP client, OCR, ảnh, QR; IndexedDB tùy chọn
+  styles/               giao diện public và tài khoản
+server/
+  migrations/           SQL có checksum, không sửa file đã áp dụng
+  src/
+    app.ts, index.ts     HTTP app và vòng đời dịch vụ
+    auth/               mật khẩu, phiên, mã xác minh, chống dò đăng nhập
+    db/                 pool, migration, repository, seed, provision local
+    domain/             validate request và lọc snapshot theo quyền
+    routes/             API tài khoản và nghiệp vụ
+    media/              kiểm tra ảnh, lưu file và quyền truy cập
+    http/               lỗi HTTP
+  tests/                kiểm thử quyền và MySQL/HTTP
+scripts/                chạy local và cập nhật danh mục
+tests/                  domain, tính tiền và VietQR
+deploy/                 Docker Compose, MySQL, Caddy HTTPS
+.github/workflows/      CI
+docs/                   kiến trúc, API, deploy và kiểm thử
 ```
 
-Không đặt logic tính tiền vào JSX. Mọi thay đổi nghiệp vụ đi qua `AppClient.execute`, rồi `domain/commands.ts` ở local hoặc máy chủ khi tích hợp. `services/media.ts`, `ocr.ts` và `qr.ts` là điểm thay thế dịch vụ độc lập.
+## Kiểm tra và deploy
 
-## Cấu hình
-
-Sao chép `.env.example` thành `.env.local`:
-
-```ini
-VITE_DATA_SOURCE=local
-VITE_API_BASE_URL=http://localhost:8080/api/v1
-VITE_DEMO_ENABLED=true
+```sh
+npm test
+npm run test:server
+npm run test:integration
+npm run check:server
+npm run build
 ```
 
-Đổi `VITE_DATA_SOURCE=api` khi backend triển khai đúng hợp đồng trong `docs/API.md`. Các biến `VITE_*` được đưa vào mã trình duyệt; không đặt API key bí mật ở đây. Sau khi đổi env cần restart dev hoặc build lại.
+Integration tạo database ngẫu nhiên `trogon_test_*`, rồi xóa đúng database bài test tạo. Dùng tài khoản trong `server/.env.test` hoặc môi trường CI; không dùng tài khoản production.
 
-`src/config/app.ts` quản lý giới hạn ảnh và tiện ích. Admin thay đổi đơn giá gợi ý cho phòng mới; chủ trọ tự cấu hình đơn giá thực tế cho từng phòng. Đơn giá này không phải tư vấn về mức thu điện nước. Thành phố/khu vực trong seed là dữ liệu minh họa và cần thay bằng danh mục chính thức khi đưa vào hoạt động.
+Xem [DEPLOYMENT.md](docs/DEPLOYMENT.md), [API.md](docs/API.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [TESTING.md](docs/TESTING.md) và [LOCATIONS.md](docs/LOCATIONS.md).
 
-## OCR và tiền
+Nếu cần import thủ công bằng MySQL Workbench, dùng [database/trogon-schema.sql](database/trogon-schema.sql) và xem [hướng dẫn import](database/README.md). File chỉ chứa cấu trúc và cấu hình ban đầu; database localhost hiện tại đã được khởi tạo nên không cần import lại.
 
-Tesseract tải bộ nhận dạng trong lần đầu, cần internet. Ảnh rõ và chụp sát vùng số sẽ cho kết quả tốt hơn. OCR là gợi ý có thể sai, đặc biệt đồng hồ kim, chữ số màu hoặc dấu thập phân. Hệ thống yêu cầu kiểm tra trước khi phát hành và cho phép sửa tay. Không giả lập chỉ số khi nhận dạng thất bại.
+Khi cập nhật schema với tài khoản web chỉ có quyền đọc/ghi: tạo `server/.env.migrate.local` theo mẫu `server/.env.migrate.example`, rồi chạy `npm run db:migrate:local`. Tài khoản migration riêng không được dùng để chạy web.
 
-Tiền điện = (số mới - số cũ) × đơn giá. Tiền nước tính tương tự. Tổng = tiền thuê + điện + nước + phí cố định. Tiền làm tròn đến VND. Bản hiện tại lập hóa đơn trọn tháng; chia tiền ngày vào/ra, nhiều lần trả, sổ cọc/hoàn cọc và thay đồng hồ cần backend cùng quy trình chi tiết ở đợt kế tiếp. Chỉ số giảm bị chặn thay vì tự tính sai.
+`Dockerfile` đóng gói frontend/API. Docker Compose có MySQL, job migration, runtime account chỉ đọc/ghi, volume ảnh và HTTPS Caddy. Cần domain/server và SMTP/SMS của đơn vị triển khai cho các kênh xác minh thật.
 
-Không có cổng thanh toán hoặc đối soát ngân hàng. Nút Tôi đã thanh toán chỉ gửi thông báo. QR cần chủ trọ cấu hình tài khoản ngân hàng trước khi phát hành; tài khoản mẫu không cài sẵn số nhận tiền thật.
+Sao lưu local bằng `npm run db:backup`, cần mysqldump. SQL nén và ảnh nằm ở `server/backups/`; không chia sẻ hoặc đóng gói các bản sao riêng tư này vào source.
 
-## Kiểm thử và bảo trì
+## Phạm vi
 
-Xem `docs/TESTING.md` và `docs/ARCHITECTURE.md`. Thay đổi quy tắc tính tiền, trạng thái thuê hoặc quyền cần bổ sung test tương ứng. Không xóa IndexedDB để xử lý lỗi mà chưa xuất dữ liệu cần giữ. Muốn khởi tạo lại dữ liệu mẫu, xóa dữ liệu của origin trong công cụ trình duyệt; việc này xóa toàn bộ dữ liệu thử của origin đó.
+Hóa đơn tính trọn kỳ tháng, thanh toán đủ một lần. Chưa có tự đối soát ngân hàng, thu tiền trực tuyến, chia tiền theo ngày vào/ra, sổ cọc/hoàn cọc hoặc ký số hợp đồng. Không tự suy đoán số tiền cho các nghiệp vụ này.
 
-## Ảnh và thư viện
-
-Ảnh nội thất minh họa từ Unsplash, lưu local để trang không phụ thuộc máy chủ ảnh khi xem. Các ID ảnh gốc: `1522708323590-d24dbb6b0267`, `1502672260266-1c1ef2d93688`, `1493809842364-78817add7ffb`, `1484154218962-a197022b5858`, `1560448204-e02f11c3d0e2`. Bản đồ Leaflet dùng ô bản đồ OpenStreetMap và có attribution. OCR: https://github.com/naptha/tesseract.js. Build: https://vite.dev/guide/static-deploy.html.
+OCR là gợi ý và yêu cầu kiểm tra lại. Chỉ số giảm bị chặn, cần xử lý thay đồng hồ trước. Danh mục ba cấp dùng địa danh quen thuộc theo yêu cầu, xem nguồn/phiên bản ở LOCATIONS.md. Ảnh nội thất minh họa từ Unsplash; dữ liệu khu vực MIT có giấy phép trong `src/data/locations.LICENSE.txt`.

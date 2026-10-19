@@ -1,0 +1,37 @@
+name: Validate TrọGọn
+on: [push, pull_request]
+permissions: { contents: read }
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env: { MYSQL_ROOT_PASSWORD: ci_ephemeral_password }
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ci_ephemeral_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          {
+            node-version: 24,
+            cache: npm,
+            cache-dependency-path: "package-lock.json\nserver/package-lock.json",
+          }
+      - run: npm ci
+      - run: npm ci --prefix server
+      - run: npm test
+      - run: npm run build
+      - run: npm run check --prefix server
+      - run: npm run check:deploy
+      - run: npm test --prefix server
+      - run: npm run test:integration --prefix server
+      - run: npm audit --omit=dev --audit-level=low
+      - run: npm audit --omit=dev --audit-level=low --prefix server
+      - run: docker build -t trogon-ci .

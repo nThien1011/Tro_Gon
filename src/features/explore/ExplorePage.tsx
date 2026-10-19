@@ -1,12 +1,9 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowRight,
   Search,
   MapPin,
-  Navigation,
   SlidersHorizontal,
-  Grid2X2,
-  Map,
   Check,
   Sparkles,
   ShieldCheck,
@@ -16,22 +13,24 @@ import {
 import { useApp } from "../../app/provider";
 import { appConfig } from "../../config/app";
 import { buildingOf } from "../../domain/selectors";
-import { distanceKm, normalize } from "../../lib/format";
-import { Empty, Modal, Select, Field } from "../../components/ui";
+import { normalize } from "../../lib/format";
+import { Empty, Modal, Field } from "../../components/ui";
+import LocationSelects from "../../components/LocationSelects";
+import {
+  buildingAddress,
+  emptyLocation,
+  matchesLocation,
+} from "../../config/locations";
 import RoomCard from "./RoomCard";
-const RoomMap = lazy(() => import("./RoomMap"));
 export default function ExplorePage({ saved = false }: { saved?: boolean }) {
-  const { data, user, toast } = useApp();
+  const { data, user } = useApp();
   const [query, setQuery] = useState("");
-  const [city, setCity] = useState("");
+  const [location, setLocation] = useState(emptyLocation);
   const [price, setPrice] = useState(0);
   const [sort, setSort] = useState("newest");
-  const [map, setMap] = useState(false);
   const [filters, setFilters] = useState(false);
   const [amenities, setAmenities] = useState<string[]>([]);
   const [area, setArea] = useState(0);
-  const [locating, setLocating] = useState(false);
-  const [position, setPosition] = useState<{ lat: number; lng: number }>();
   const items = useMemo(
     () =>
       data.listings
@@ -50,18 +49,17 @@ export default function ExplorePage({ saved = false }: { saved?: boolean }) {
             listing,
             room,
             building,
-            distance: position ? distanceKm(position, building) : undefined,
           };
         })
         .filter(
           (x) =>
             x.room.status === "available" &&
-            (!city || x.building.city === city) &&
+            matchesLocation(x.building, location) &&
             (!price || x.room.rent <= price) &&
             x.room.area >= area &&
             amenities.every((a) => x.room.amenities.includes(a)) &&
             normalize(
-              `${x.building.area} ${x.building.city} ${x.building.name} ${x.listing.title} ${x.building.address}`,
+              `${buildingAddress(x.building)} ${x.building.name} ${x.listing.title}`,
             ).includes(normalize(query)),
         )
         .sort((a, b) =>
@@ -69,35 +67,10 @@ export default function ExplorePage({ saved = false }: { saved?: boolean }) {
             ? a.room.rent - b.room.rent
             : sort === "priceDesc"
               ? b.room.rent - a.room.rent
-              : sort === "distance"
-                ? (a.distance || 0) - (b.distance || 0)
-                : b.listing.createdAt.localeCompare(a.listing.createdAt),
+              : b.listing.createdAt.localeCompare(a.listing.createdAt),
         ),
-    [data, user, saved, query, city, price, sort, position, amenities, area],
+    [data, user, saved, query, location, price, sort, amenities, area],
   );
-  const locate = () => {
-    if (!navigator.geolocation) {
-      toast("Thiết bị không hỗ trợ định vị. Bạn có thể chọn khu vực.", true);
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        setPosition({ lat: p.coords.latitude, lng: p.coords.longitude });
-        setSort("distance");
-        setLocating(false);
-        toast("Đã sắp xếp theo khoảng cách từ vị trí của bạn.");
-      },
-      () => {
-        setLocating(false);
-        toast(
-          "Chưa lấy được vị trí. Cấp quyền định vị hoặc chọn khu vực thủ công.",
-          true,
-        );
-      },
-      { timeout: 10000 },
-    );
-  };
   return (
     <main>
       {!saved ? (
@@ -167,79 +140,85 @@ export default function ExplorePage({ saved = false }: { saved?: boolean }) {
       )}
       <section className="container search-section">
         <div className="search-panel">
-          <label className="main-search">
-            <MapPin size={21} />
-            <div>
-              <span>BẠN MUỐN Ở ĐÂU?</span>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Khu vực, tên đường hoặc tòa nhà"
-                aria-label="Khu vực, tên đường hoặc tòa nhà"
-              />
-            </div>
-          </label>
-          <label className="search-select">
-            <span>THÀNH PHỐ</span>
-            <select
-              aria-label="Thành phố"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
+          <LocationSelects value={location} onChange={setLocation} search />
+          <div className="search-options">
+            <label className="main-search">
+              <MapPin size={21} />
+              <div>
+                <span>TỪ KHÓA</span>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Tên đường, tòa nhà hoặc phòng"
+                  aria-label="Tên đường, tòa nhà hoặc phòng"
+                />
+              </div>
+            </label>
+            <label className="search-select">
+              <span>NGÂN SÁCH / THÁNG</span>
+              <select
+                value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+                aria-label="Ngân sách"
+              >
+                <option value={0}>Mọi mức giá</option>
+                <option value={3000000}>Dưới 3 triệu</option>
+                <option value={4000000}>Dưới 4 triệu</option>
+                <option value={5000000}>Dưới 5 triệu</option>
+              </select>
+            </label>
+            <button
+              className="btn primary search-submit"
+              onClick={() =>
+                document
+                  .getElementById("results")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
             >
-              <option value="">Tất cả thành phố</option>
-              {[
-                ...new Set([
-                  ...appConfig.cities,
-                  ...data.buildings.map((b) => b.city),
-                ]),
-              ].map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-          <label className="search-select">
-            <span>NGÂN SÁCH / THÁNG</span>
-            <select
-              value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
-              aria-label="Ngân sách"
-            >
-              <option value={0}>Mọi mức giá</option>
-              <option value={3000000}>Dưới 3 triệu</option>
-              <option value={4000000}>Dưới 4 triệu</option>
-              <option value={5000000}>Dưới 5 triệu</option>
-            </select>
-          </label>
-          <button
-            className="btn primary search-submit"
-            onClick={() =>
-              document
-                .getElementById("results")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
-          >
-            <Search size={19} />
-            Tìm phòng
-          </button>
+              <Search size={19} />
+              Tìm phòng
+            </button>
+          </div>
         </div>
         <div className="popular-areas">
           <span>Khu vực gợi ý</span>
-          {["Bình Thạnh", "Thủ Đức", "Cầu Giấy", "Sơn Trà"].map((a) => (
+          {[
+            { label: "Ngũ Hành Sơn", cityCode: "48", districtCode: "494" },
+            { label: "Sơn Trà", cityCode: "48", districtCode: "493" },
+            { label: "Bình Thạnh", cityCode: "79", districtCode: "765" },
+            { label: "Thủ Đức", cityCode: "79", districtCode: "769" },
+            { label: "Cầu Giấy", cityCode: "01", districtCode: "005" },
+          ].map((a) => (
             <button
-              className={query === a ? "active" : ""}
-              key={a}
+              className={
+                location.cityCode === a.cityCode &&
+                location.districtCode === a.districtCode
+                  ? "active"
+                  : ""
+              }
+              key={a.districtCode}
               onClick={() => {
-                setQuery(a === query ? "" : a);
-                setCity("");
+                setQuery("");
+                setLocation(
+                  location.cityCode === a.cityCode &&
+                    location.districtCode === a.districtCode
+                    ? emptyLocation
+                    : {
+                        cityCode: a.cityCode,
+                        districtCode: a.districtCode,
+                        wardCode: "",
+                      },
+                );
               }}
             >
-              {a}
+              {a.label}
             </button>
           ))}
-          <button className="nearby-link" disabled={locating} onClick={locate}>
-            <Navigation size={14} />
-            {locating ? "Đang định vị…" : "Gần tôi"}
-          </button>
+          {location.cityCode && (
+            <button onClick={() => setLocation(emptyLocation)}>
+              Xóa khu vực
+            </button>
+          )}
         </div>
       </section>
       <section className="container results-section" id="results">
@@ -253,7 +232,9 @@ export default function ExplorePage({ saved = false }: { saved?: boolean }) {
             <p>
               {saved && !user
                 ? "Đăng nhập bằng tài khoản người thuê để lưu các phòng bạn quan tâm."
-                : "Các tin dưới đây là dữ liệu mẫu để trải nghiệm tính năng."}
+                : appConfig.dataSource === "local"
+                  ? "Các tin dưới đây là dữ liệu mẫu để trải nghiệm tính năng."
+                  : "Tìm phòng phù hợp theo khu vực và ngân sách của bạn."}
             </p>
           </div>
           <div className="result-controls">
@@ -272,42 +253,14 @@ export default function ExplorePage({ saved = false }: { saved?: boolean }) {
               <option value="newest">Mới cập nhật</option>
               <option value="priceAsc">Giá tăng dần</option>
               <option value="priceDesc">Giá giảm dần</option>
-              {position && <option value="distance">Gần bạn nhất</option>}
             </select>
-            <div className="view-toggle">
-              <button
-                className={!map ? "active" : ""}
-                onClick={() => setMap(false)}
-                aria-label="Xem dạng lưới"
-              >
-                <Grid2X2 size={18} />
-              </button>
-              <button
-                className={map ? "active" : ""}
-                onClick={() => setMap(true)}
-                aria-label="Xem bản đồ"
-              >
-                <Map size={18} />
-              </button>
-            </div>
           </div>
         </div>
         {items.length ? (
-          <div className={map ? "map-results" : ""}>
-            <div className="room-grid">
-              {items.map((x) => (
-                <RoomCard
-                  key={x.listing.id}
-                  listing={x.listing}
-                  distance={x.distance}
-                />
-              ))}
-            </div>
-            {map && (
-              <Suspense fallback={<div className="empty">Đang mở bản đồ…</div>}>
-                <RoomMap items={items} position={position} />
-              </Suspense>
-            )}
+          <div className="room-grid">
+            {items.map((x) => (
+              <RoomCard key={x.listing.id} listing={x.listing} />
+            ))}
           </div>
         ) : (
           <Empty
@@ -324,7 +277,7 @@ export default function ExplorePage({ saved = false }: { saved?: boolean }) {
                 className="btn primary"
                 onClick={() => {
                   setQuery("");
-                  setCity("");
+                  setLocation(emptyLocation);
                   setPrice(0);
                   setAmenities([]);
                   setArea(0);

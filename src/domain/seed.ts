@@ -201,6 +201,8 @@ export const seedData = (): Snapshot => ({
     },
   ],
   audit: [],
+  notifications: [],
+  meterReadings: [],
   settings: {
     siteName: "TrọGọn",
     supportEmail: "hotro@example.com",

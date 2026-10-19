@@ -119,18 +119,66 @@ const localClient: AppClient = {
     });
   },
 };
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+let csrfToken = "";
+async function prepareCsrf() {
+  const response = await fetch(`${appConfig.apiBaseUrl}/auth/csrf`, {
+    credentials: "include",
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok) throw new Error("Không kết nối được máy chủ xác thực.");
+  csrfToken = (await response.json()).token;
+}
+export async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  retryCsrf = true,
+): Promise<T> {
+  const writing = options.method && !["GET", "HEAD"].includes(options.method);
+  if (writing && !csrfToken) await prepareCsrf();
   const res = await fetch(`${appConfig.apiBaseUrl}${path}`, {
     ...options,
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options.headers },
+    signal: AbortSignal.timeout(30000),
+    headers: {
+      ...(writing ? { "X-CSRF-Token": csrfToken } : {}),
+      ...(options.body !== undefined
+        ? { "Content-Type": "application/json" }
+        : {}),
+      ...options.headers,
+    },
   });
   const body = await res.json().catch(() => ({}));
+  if (res.status === 403 && body.code === "CSRF" && retryCsrf) {
+    await prepareCsrf();
+    return request(path, options, false);
+  }
   if (!res.ok) throw new Error(body.message || "Không kết nối được máy chủ.");
   return body;
 }
+export const accountApi = {
+  requestVerification: (channel: "email" | "phone") =>
+    request<{ challengeId: string; message: string }>(
+      "/auth/verification/request",
+      { method: "POST", body: JSON.stringify({ channel }) },
+    ),
+  confirmVerification: (challengeId: string, code: string) =>
+    request("/auth/verification/confirm", {
+      method: "POST",
+      body: JSON.stringify({ challengeId, code }),
+    }),
+  requestReset: (contact: string) =>
+    request<{ challengeId: string; message: string }>(
+      "/auth/password/reset/request",
+      { method: "POST", body: JSON.stringify({ contact }) },
+    ),
+  confirmReset: (challengeId: string, code: string, newPassword: string) =>
+    request("/auth/password/reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ challengeId, code, newPassword }),
+    }),
+};
 const apiClient: AppClient = {
-  async initialize() {},
+  initialize: prepareCsrf,
   snapshot: () => request("/snapshot"),
   me: () => request("/auth/me"),
   signIn: (contact, password) =>
@@ -141,13 +189,67 @@ const apiClient: AppClient = {
   register: (input) =>
     request("/auth/register", { method: "POST", body: JSON.stringify(input) }),
   signOut: () => request("/auth/logout", { method: "POST" }),
-  execute: (command) =>
-    request("/commands", { method: "POST", body: JSON.stringify(command) }),
+  async execute(command) {
+    if (
+      command.type === "appointment.create" &&
+      typeof command.payload.date === "string"
+    )
+      command = {
+        ...command,
+        payload: {
+          ...command.payload,
+          date: new Date(command.payload.date).toISOString(),
+        },
+      };
+    const options = {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(command),
+    };
+    try {
+      await request("/commands", options);
+    } catch (error) {
+      if (
+        error instanceof TypeError ||
+        (error instanceof Error &&
+          ["TimeoutError", "AbortError"].includes(error.name))
+      )
+        await request("/commands", options);
+      else throw error;
+    }
+  },
   changePassword: (oldPassword, newPassword) =>
     request("/auth/password", {
       method: "POST",
       body: JSON.stringify({ oldPassword, newPassword }),
     }),
-  subscribe: () => () => {},
+  subscribe(fn) {
+    let last = "",
+      busy = false,
+      stopped = false;
+    const poll = async () => {
+      if (stopped || busy || document.hidden) return;
+      busy = true;
+      try {
+        const version = JSON.stringify(await request("/version"));
+        if (last && last !== version && !stopped) fn();
+        last = version;
+      } catch {
+        /* Next poll recovers a temporary outage. */
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = window.setInterval(poll, 5000);
+    window.addEventListener("focus", poll);
+    document.addEventListener("visibilitychange", poll);
+    void poll();
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", poll);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  },
 };
 export const client = appConfig.dataSource === "api" ? apiClient : localClient;

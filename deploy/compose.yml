@@ -1,0 +1,96 @@
+name: trogon
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: trogon
+      MYSQL_USER: trogon_migrator
+      MYSQL_PASSWORD: ${MIGRATION_DB_PASSWORD:?Set MIGRATION_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_APP_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init.sh:/docker-entrypoint-initdb.d/10-trogon.sh:ro
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysqladmin ping -h127.0.0.1 -uroot --silent',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [private]
+  migrate:
+    image: trogon-app:local
+    build: { context: .. }
+    environment:
+      NODE_ENV: production
+      APP_ORIGIN: https://${DOMAIN:?Set DOMAIN}
+      DB_HOST: mysql
+      DB_NAME: trogon
+      DB_USER: trogon_migrator
+      DB_PASSWORD: ${MIGRATION_DB_PASSWORD}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?Set BOOTSTRAP_ADMIN_EMAIL}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD}
+    command: [./server/node_modules/.bin/tsx, server/src/cli.ts, migrate]
+    depends_on:
+      mysql: { condition: service_healthy }
+    networks: [private]
+    restart: "no"
+  api:
+    image: trogon-app:local
+    build: { context: .. }
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      APP_ORIGIN: https://${DOMAIN}
+      DB_HOST: mysql
+      DB_NAME: trogon
+      DB_USER: trogon_app
+      DB_PASSWORD: ${APP_DB_PASSWORD}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET}
+      STORAGE_DIR: /data/media
+      TRUST_PROXY: 172.29.45.2/32
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMS_WEBHOOK_URL: ${SMS_WEBHOOK_URL:-}
+      SMS_WEBHOOK_TOKEN: ${SMS_WEBHOOK_TOKEN:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    volumes: [media_data:/data/media]
+    networks: [private]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    stop_grace_period: 30s
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api: { condition: service_healthy }
+    networks:
+      private: { ipv4_address: 172.29.45.2 }
+volumes:
+  mysql_data:
+  media_data:
+  caddy_data:
+  caddy_config:
+networks:
+  private:
+    ipam:
+      config: [{ subnet: 172.29.45.0/24 }]

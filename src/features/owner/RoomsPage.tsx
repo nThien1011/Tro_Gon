@@ -19,6 +19,8 @@ import {
 export default function RoomsPage({ route }: { route: string }) {
   const { data, user, execute } = useApp();
   const [query, setQuery] = useState("");
+  const [electricityMode, setElectricityMode] = useState("metered");
+  const [waterMode, setWaterMode] = useState("metered");
   const [building, setBuilding] = useState(
     new URLSearchParams(route.split("?")[1]).get("building") || "",
   );
@@ -40,6 +42,8 @@ export default function RoomsPage({ route }: { route: string }) {
         ),
     );
   const edit = (room: Room | null) => {
+    setElectricityMode(room?.electricityBillingMode || "metered");
+    setWaterMode(room?.waterBillingMode || "metered");
     setEditing(room);
     setImages(room?.images || []);
     setAmenities(room?.amenities || []);
@@ -122,7 +126,14 @@ export default function RoomsPage({ route }: { route: string }) {
                     <small>Dịch vụ {money(r.serviceFee)}</small>
                   </td>
                   <td>
-                    {r.electricity} kWh<small>{r.water} m³ nước</small>
+                    {r.electricityBillingMode === "fixed"
+                      ? `Điện ${money(r.electricityMonthlyFee || 0)}/tháng`
+                      : `${r.electricity} kWh`}
+                    <small>
+                      {r.waterBillingMode === "fixed"
+                        ? `Nước ${money(r.waterMonthlyFee || 0)}/tháng`
+                        : `${r.water} m³ nước`}
+                    </small>
                   </td>
                   <td>
                     <Status value={r.status} />
@@ -278,25 +289,83 @@ export default function RoomsPage({ route }: { route: string }) {
                 required
               />
             </div>
+            <h3>Cách tính điện và nước</h3>
+            <div className="form-grid">
+              <Select
+                label="Cách tính tiền điện"
+                name="electricityBillingMode"
+                value={electricityMode}
+                onChange={(e) => setElectricityMode(e.target.value)}
+              >
+                <option value="metered">Theo chỉ số đồng hồ (kWh)</option>
+                <option value="fixed">Cố định mỗi tháng</option>
+              </Select>
+              <Select
+                label="Cách tính tiền nước"
+                name="waterBillingMode"
+                value={waterMode}
+                onChange={(e) => setWaterMode(e.target.value)}
+              >
+                <option value="metered">Theo chỉ số đồng hồ (m³)</option>
+                <option value="fixed">Cố định mỗi tháng</option>
+              </Select>
+            </div>
             <div className="form-grid three">
               <Field
-                label="Giá điện VND / kWh"
-                name="electricityRate"
+                key={`electricity-${electricityMode}`}
+                label={
+                  electricityMode === "fixed"
+                    ? "Tiền điện cố định VND / tháng"
+                    : "Giá điện VND / kWh"
+                }
+                name={
+                  electricityMode === "fixed"
+                    ? "electricityMonthlyFee"
+                    : "electricityRate"
+                }
                 type="number"
                 min={0}
                 defaultValue={
-                  editing?.electricityRate || data.settings.electricityRate
+                  electricityMode === "fixed"
+                    ? (editing?.electricityMonthlyFee ?? 0)
+                    : (editing?.electricityRate ??
+                      data.settings.electricityRate)
                 }
                 required
               />
+              {electricityMode === "fixed" && (
+                <input
+                  type="hidden"
+                  name="electricityRate"
+                  value={
+                    editing?.electricityRate ?? data.settings.electricityRate
+                  }
+                />
+              )}
               <Field
-                label="Giá nước VND / m³"
-                name="waterRate"
+                key={`water-${waterMode}`}
+                label={
+                  waterMode === "fixed"
+                    ? "Tiền nước cố định VND / tháng"
+                    : "Giá nước VND / m³"
+                }
+                name={waterMode === "fixed" ? "waterMonthlyFee" : "waterRate"}
                 type="number"
                 min={0}
-                defaultValue={editing?.waterRate || data.settings.waterRate}
+                defaultValue={
+                  waterMode === "fixed"
+                    ? (editing?.waterMonthlyFee ?? 0)
+                    : (editing?.waterRate ?? data.settings.waterRate)
+                }
                 required
               />
+              {waterMode === "fixed" && (
+                <input
+                  type="hidden"
+                  name="waterRate"
+                  value={editing?.waterRate ?? data.settings.waterRate}
+                />
+              )}
               <Field
                 label="Phí dịch vụ VND"
                 name="serviceFee"
@@ -306,6 +375,11 @@ export default function RoomsPage({ route }: { route: string }) {
                 required
               />
             </div>
+            <p className="muted small-text">
+              Theo đồng hồ: (chỉ số mới − chỉ số cũ) × đơn giá. Cố định: thu
+              đúng mức đã đặt mỗi tháng. Thay đổi chỉ áp dụng cho hóa đơn lập
+              sau đó.
+            </p>
             {!editing && (
               <div className="form-grid">
                 <Field

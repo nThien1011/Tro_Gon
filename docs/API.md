@@ -1,35 +1,47 @@
-# Hợp đồng backend dự kiến
+# API
 
-Đây là hợp đồng của HTTP adapter đã viết, chưa có server triển khai kèm. Base URL do `VITE_API_BASE_URL` cấu hình. Response dùng JSON trực tiếp, lỗi trả `{ "message": "Thông báo có thể hiển thị" }` cùng mã HTTP phù hợp. Cookie session do server quản lý.
+Base URL `/api/v1`, JSON, cookie cùng origin. Error gồm message/code/requestId, không trả SQL/password hash. Healthcheck ở root.
 
-| Method | Path           | Request                                              | Response                                                                  |
-| ------ | -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| GET    | /snapshot      | Cookie session nếu có                                | Snapshot theo `domain/models.ts`, đã lọc theo quyền, không có credentials |
-| GET    | /auth/me       | Cookie session                                       | User công khai của session hoặc null                                      |
-| POST   | /auth/login    | contact, password                                    | User và Set-Cookie                                                        |
-| POST   | /auth/register | name, email, phone, password, role owner hoặc tenant | User và Set-Cookie                                                        |
-| POST   | /auth/logout   | Cookie session                                       | JSON, xóa session                                                         |
-| POST   | /auth/password | oldPassword, newPassword                             | JSON                                                                      |
-| POST   | /commands      | type, payload                                        | JSON kết quả; UI sẽ lấy lại snapshot                                      |
+| Method | Path                         | Chức năng/input                                 |
+| ------ | ---------------------------- | ----------------------------------------------- |
+| GET    | /auth/csrf                   | Nhận token và cookie CSRF HttpOnly              |
+| POST   | /auth/register               | name, email, phone, password, role owner/tenant |
+| POST   | /auth/login                  | contact, password                               |
+| GET    | /auth/me                     | User hiện tại hoặc null                         |
+| POST   | /auth/logout                 | Hủy phiên                                       |
+| POST   | /auth/password               | oldPassword, newPassword, thu hồi các phiên cũ  |
+| POST   | /auth/verification/request   | channel email/phone, trả challengeId            |
+| POST   | /auth/verification/confirm   | challengeId, code                               |
+| POST   | /auth/password/reset/request | contact, trả challengeId và thông báo chung     |
+| POST   | /auth/password/reset/confirm | challengeId, code, newPassword                  |
+| GET    | /snapshot                    | Snapshot theo quyền, không chứa credentials     |
+| GET    | /version                     | version/userId cho cập nhật UI                  |
+| POST   | /commands                    | type/payload, bắt buộc Idempotency-Key          |
+| GET    | /media/:id                   | Ảnh theo quyền, không có quyền trả 404          |
+| GET    | /health/live                 | Root: process alive                             |
+| GET    | /health/ready                | Root: database ready                            |
 
-Guest chỉ nhận tin published, phòng available, thông tin chủ trọ công bố và danh mục. Tenant nhận các đối tượng của mình. Owner nhận tài sản và các yêu cầu liên quan. Admin có quyền quản trị nhưng vẫn áp dụng giới hạn dữ liệu riêng theo chính sách của sản phẩm.
+POST cần X-CSRF-Token bằng token GET csrf và cookie tương ứng. Token hết hạn lấy token mới. Không lưu session token ở localStorage. Mật khẩu 8–128 ký tự; đăng ký ít nhất email hoặc điện thoại, không tự tạo admin.
 
-## Các command
+Command: building.save/delete, room.save/delete, listing.save/hide/moderate, tenancy.assign/end, request.create/respond/confirm/cancel, appointment.create/respond, conversation.start, message.send, invoice.save/cancel, payment.notify/confirm/reject, favorite.toggle, ticket.create/respond, profile.save, user.toggle, settings.save, meter.submit/review, notification.read.
 
-- `building.save`, `building.delete`
-- `room.save`, `room.delete`
-- `listing.save`, `listing.hide`, `listing.moderate`
-- `tenancy.assign`, `tenancy.end`
-- `request.create`, `request.respond`, `request.confirm`, `request.cancel`
-- `appointment.create`, `appointment.respond`
-- `conversation.start`, `message.send`
-- `invoice.save`, `invoice.cancel`
-- `payment.notify`, `payment.confirm`
-- `favorite.toggle`
-- `ticket.create`, `ticket.respond`
-- `profile.save`, `user.toggle`, `settings.save`
+Tòa nhà không cần tọa độ; server lấy tên địa danh từ mã:
 
-Payload và điều kiện tham chiếu `domain/commands.ts`. Ví dụ:
+```json
+{
+  "type": "building.save",
+  "payload": {
+    "name": "December",
+    "cityCode": "48",
+    "districtCode": "494",
+    "wardCode": "20290",
+    "address": "25 đường Trường Sa",
+    "description": "Mô tả"
+  }
+}
+```
+
+Hóa đơn:
 
 ```json
 {
@@ -39,12 +51,29 @@ Payload và điều kiện tham chiếu `domain/commands.ts`. Ví dụ:
     "period": "2026-11",
     "newElectricity": 1573,
     "newWater": 125.5,
-    "electricityPhoto": "private-object-reference",
-    "waterPhoto": "private-object-reference",
+    "electricityPhoto": "data:image/jpeg;base64,...",
     "dueDate": "2026-12-05",
     "issue": true
   }
 }
 ```
 
-Server lấy chỉ số cũ, đơn giá, người thuê và ngân hàng từ dữ liệu có quyền truy cập. Khi chuyển sang ảnh cloud, bổ sung upload adapter; không gửi Base64 lớn trong snapshot lâu dài. Khi muốn REST theo tài nguyên, thay HTTP adapter mà giữ nguyên các màn hình và tính toán trình bày.
+Server lấy chỉ số cũ/giá/phí/người thuê/ngân hàng từ DB. issue=false lưu nháp, true phát hành; cập nhật nháp cần id. Ảnh đổi thành URL private sau lưu. Request tối đa 12 MB; mỗi ảnh tối đa 10 MB, JPEG/PNG/WebP, tối đa 8 ảnh phòng.
+
+payment.notify do người thuê; payment.confirm do chủ trọ/admin sau khi nhận đủ tiền; payment.reject cần reason và chỉ chuyển pending về unpaid. Không hủy invoice đã thu/chờ xác nhận. Idempotency-Key 16–80 ký tự, cùng người/key/payload trả kết quả cũ; payload khác trả 409.
+
+Ngày thuê/dueDate dùng YYYY-MM-DD; lịch xem dùng ISO có timezone. Frontend đổi datetime-local trước gửi. Danh mục mã khu vực và tương thích dữ liệu cũ ở LOCATIONS.md.
+
+401: chưa đăng nhập; 403: sai quyền/CSRF/origin; 409: trùng dữ liệu/key; 422: vi phạm nghiệp vụ; 429: giới hạn thao tác; 503: bảo trì/kênh gửi mã chưa cấu hình; 500: lỗi nội bộ, tra requestId trong log.
+
+## Thông báo và chỉ số dùng chung
+
+Snapshot có `notifications` riêng người nhận (kể cả admin), `meterReadings` theo quyền phòng/hồ sơ thuê. `notification.read` nhận `{id}` hoặc `{all: true}`, không được đọc hộ.
+
+`room.save` thêm `electricityBillingMode`/`waterBillingMode`: `metered` hoặc `fixed`, và `electricityMonthlyFee`/`waterMonthlyFee`. Dữ liệu cũ mặc định metered. Invoice giữ snapshot mode/phí từ DB, không nhận từ client.
+
+`meter.submit`: `{roomId, kind: "electricity" | "water", period: "YYYY-MM", value, photo, confirmed: true, ocrValue?, ocrConfidence?, ocrText?}`. Tenant chỉ gửi cho phòng đang thuê; owner/admin phải quản lý phòng. Server lấy previous/tenancy/tenant từ DB. Photo là data URL JPEG/PNG/WebP hoặc media có quyền; không dùng ảnh minh họa public. OCR metadata chỉ là gợi ý client.
+
+`meter.review`: `{id, accept: true}` hoặc `{id, accept: false, reason}`; chỉ owner quản lý/admin duyệt pending. Bản accepted trước của cùng phòng/kỳ/loại chuyển superseded; vẫn giữ lịch sử. Unique generated key chặn nhiều bản accepted cùng phòng/kỳ/loại. Chặn duyệt sau bàn giao hoặc khi chỉ số gốc thay đổi.
+
+`invoice.save` có thể dùng `electricityReadingId`/`waterReadingId` để lấy value/photo từ bản accepted cùng hồ sơ thuê/kỳ. Khoản fixed không cần số mới, giữ nguyên số gốc. Chi tiết ở [NOTIFICATIONS_AND_METERS.md](NOTIFICATIONS_AND_METERS.md).

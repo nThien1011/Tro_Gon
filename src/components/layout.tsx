@@ -19,7 +19,6 @@ import {
   X,
   ChevronDown,
   ArrowUpRight,
-  Bell,
   ClipboardList,
   Activity,
 } from "lucide-react";
@@ -29,6 +28,7 @@ import { client } from "../services/client";
 import { navigate } from "../app/router";
 import { initials } from "../lib/format";
 import { roleLabels } from "../domain/models";
+import NotificationBell from "../features/notifications/NotificationBell";
 export function Brand() {
   return (
     <a href="#/" className="brand">
@@ -76,10 +76,13 @@ export function PublicLayout({ children }: { children: ReactNode }) {
           </nav>
           <div className="header-actions">
             {user ? (
-              <a className="btn primary" href="#/app">
-                <span className="avatar small">{initials(user.name)}</span>Không
-                gian của tôi
-              </a>
+              <>
+                <NotificationBell />
+                <a className="btn primary" href="#/app">
+                  <span className="avatar small">{initials(user.name)}</span>
+                  Không gian của tôi
+                </a>
+              </>
             ) : (
               <>
                 <a className="login-link" href="#/login">
@@ -318,17 +321,7 @@ export function AppLayout({
                 Dữ liệu trên thiết bị
               </span>
             )}
-            <a
-              className="icon-btn"
-              href={
-                user.role === "admin"
-                  ? "#/app/moderation"
-                  : "#/app/appointments"
-              }
-              aria-label="Thông báo"
-            >
-              <Bell size={20} />
-            </a>
+            <NotificationBell />
             <a href="#/app/account" className="avatar small">
               {initials(user.name)}
             </a>

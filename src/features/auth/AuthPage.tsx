@@ -101,7 +101,7 @@ export default function AuthPage({
                 new FormData(e.currentTarget),
               ) as Record<string, string>;
               setBusy(true);
-              await task(
+              const succeeded = await task(
                 async () => {
                   if (register) {
                     if (values.password !== values.confirmPassword)
@@ -114,10 +114,10 @@ export default function AuthPage({
                       role,
                     });
                   } else await client.signIn(values.contact, values.password);
-                  navigate("/app");
                 },
                 register ? "Tài khoản đã được tạo." : "Đăng nhập thành công.",
               );
+              if (succeeded) navigate("/app");
               setBusy(false);
             }}
           >
@@ -143,7 +143,7 @@ export default function AuthPage({
                   type="tel"
                   autoComplete="tel"
                   placeholder="09xxxxxxxx"
-                  hint="Điền ít nhất email hoặc số điện thoại. Thông tin xác minh sẽ do backend cung cấp khi tích hợp."
+                  hint="Điền ít nhất email hoặc số điện thoại để liên kết với phòng và khôi phục tài khoản."
                 />
               </>
             ) : (
@@ -189,6 +189,11 @@ export default function AuthPage({
               <ArrowRight size={18} />
             </button>
           </form>
+          {!register && appConfig.dataSource === "api" && (
+            <p className="auth-switch">
+              <a href="#/reset-password">Quên mật khẩu?</a>
+            </p>
+          )}
           <p className="auth-switch">
             {register ? "Đã có tài khoản?" : "Bạn mới đến TrọGọn?"}{" "}
             <a href={register ? "#/login" : "#/register"}>

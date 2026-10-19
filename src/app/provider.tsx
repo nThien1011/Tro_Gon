@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 import type { Command, Snapshot, User } from "../domain/models";
@@ -26,6 +27,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Snapshot>();
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState("");
+  const refreshSequence = useRef(0);
   const [messages, setMessages] = useState<
     { id: number; text: string; error?: boolean }[]
   >([]);
@@ -35,12 +37,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setMessages((m) => m.filter((x) => x.id !== id)), 5500);
   }, []);
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     const [snapshot, session] = await Promise.all([
       client.snapshot(),
       client.me(),
     ]);
-    setData(snapshot);
-    setUser(session);
+    if (sequence === refreshSequence.current) {
+      setData(snapshot);
+      setUser(session);
+    }
   }, []);
   useEffect(() => {
     client

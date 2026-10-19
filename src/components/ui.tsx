@@ -7,7 +7,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
-import { X, Upload, ImagePlus, Search, Inbox } from "lucide-react";
+import { X, Upload, ImagePlus, Search, Inbox, Camera } from "lucide-react";
 import { imageToDataUrl } from "../services/media";
 import { useApp } from "../app/provider";
 export function Badge({
@@ -217,13 +217,31 @@ export function ImageUpload({
   images,
   onChange,
   single = false,
+  disabled = false,
 }: {
   images: string[];
   onChange: (images: string[]) => void;
   single?: boolean;
+  disabled?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const { toast } = useApp();
+  const upload = async (files: File[]) => {
+    if (!files.length || busy || disabled) return;
+    setBusy(true);
+    try {
+      const values = await Promise.all(
+        files
+          .slice(0, single ? 1 : Math.max(0, 8 - images.length))
+          .map(imageToDataUrl),
+      );
+      onChange(single ? values : [...images, ...values]);
+    } catch (error) {
+      toast((error as Error).message, true);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="upload-field">
       <div className="upload-preview">
@@ -233,6 +251,7 @@ export function ImageUpload({
             <button
               type="button"
               aria-label="Bỏ ảnh"
+              disabled={busy || disabled}
               onClick={() => onChange(images.filter((_, n) => i !== n))}
             >
               <X size={14} />
@@ -252,29 +271,33 @@ export function ImageUpload({
         </span>
         <Upload size={17} />
         <input
-          disabled={busy}
+          disabled={busy || disabled}
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple={!single}
-          onChange={async (e) => {
+          onChange={(e) => {
             const files = Array.from(e.target.files || []);
-            if (!files.length) return;
-            setBusy(true);
-            try {
-              const values = await Promise.all(
-                files
-                  .slice(0, single ? 1 : Math.max(0, 8 - images.length))
-                  .map(imageToDataUrl),
-              );
-              onChange(single ? values : [...images, ...values]);
-            } catch (e) {
-              toast((e as Error).message, true);
-            } finally {
-              setBusy(false);
-            }
+            e.target.value = "";
+            void upload(files);
           }}
         />
       </label>
+      {single && (
+        <label className="camera-button">
+          <Camera size={17} /> Chụp bằng camera
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            disabled={busy || disabled}
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              e.target.value = "";
+              void upload(files);
+            }}
+          />
+        </label>
+      )}
     </div>
   );
 }

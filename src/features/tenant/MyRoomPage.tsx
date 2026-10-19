@@ -13,6 +13,8 @@ import { useApp } from "../../app/provider";
 import { buildingOf, ownerOf } from "../../domain/selectors";
 import { PageTitle, Empty, Badge } from "../../components/ui";
 import { money, dateText, initials } from "../../lib/format";
+import { buildingAddress } from "../../config/locations";
+import MeterReadingsPanel from "../billing/MeterReadingsPanel";
 export default function MyRoomPage() {
   const { data, user } = useApp();
   const tenancy = data.tenancies.find(
@@ -57,7 +59,7 @@ export default function MyRoomPage() {
           </h2>
           <p>
             <MapPin size={16} />
-            {building.address}, {building.area}, {building.city}
+            {buildingAddress(building)}
           </p>
         </div>
       </div>
@@ -123,11 +125,17 @@ export default function MyRoomPage() {
           <div className="meter-info">
             <span>
               <Zap size={18} />
-              Điện: {money(room.electricityRate)}/kWh
+              Điện:{" "}
+              {room.electricityBillingMode === "fixed"
+                ? `${money(room.electricityMonthlyFee || 0)}/tháng`
+                : `${money(room.electricityRate)}/kWh`}
             </span>
             <span>
               <Droplets size={18} />
-              Nước: {money(room.waterRate)}/m³
+              Nước:{" "}
+              {room.waterBillingMode === "fixed"
+                ? `${money(room.waterMonthlyFee || 0)}/tháng`
+                : `${money(room.waterRate)}/m³`}
             </span>
           </div>
           <p className="muted small-text">
@@ -139,6 +147,7 @@ export default function MyRoomPage() {
           </a>
         </section>
       </div>
+      <MeterReadingsPanel roomId={room.id} />
     </>
   );
 }

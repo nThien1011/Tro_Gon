@@ -13,8 +13,16 @@ export default function MessagesPage({ route }: { route: string }) {
     (c) => c.ownerId === user?.id || c.tenantId === user?.id,
   );
   const listingId = new URLSearchParams(route.split("?")[1]).get("listing");
+  const conversationId = new URLSearchParams(route.split("?")[1]).get(
+    "conversation",
+  );
+  const openFromUrl = new URLSearchParams(route.split("?")[1]).get("open");
+  useEffect(() => {
+    if (conversationId) setSelected(conversationId);
+  }, [conversationId, openFromUrl]);
   const conversation =
     conversations.find((c) => c.id === selected) ||
+    conversations.find((c) => c.id === conversationId) ||
     conversations.find((c) => c.listingId === listingId) ||
     conversations[0];
   useEffect(() => {

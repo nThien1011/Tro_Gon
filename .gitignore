@@ -6,3 +6,12 @@ dist/
 outputs/
 *.log
 *.tsbuildinfo
+server/.env
+server/.env.test
+server/.env.production
+deploy/.env
+*.env
+server/storage/
+server/backups/
+server/node_modules/
+server/dist/

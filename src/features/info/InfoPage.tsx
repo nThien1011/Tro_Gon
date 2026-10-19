@@ -6,7 +6,7 @@ export default function InfoPage({ page }: { page: string }) {
       <PageTitle
         title={
           page === "/privacy"
-            ? "Quyền riêng tư trong bản trải nghiệm"
+            ? "Quyền riêng tư"
             : page === "/guide"
               ? "Sử dụng TrọGọn"
               : "Một nơi ở, nhiều kết nối"
@@ -16,41 +16,38 @@ export default function InfoPage({ page }: { page: string }) {
         <>
           <h2>Dữ liệu được lưu ở đâu</h2>
           <p>
-            Khi cấu hình ở chế độ local, thông tin tài khoản, tin đăng, ảnh, hóa
-            đơn và cuộc trò chuyện được lưu bằng IndexedDB trên trình duyệt của
-            thiết bị này. Thông tin không được đồng bộ sang thiết bị khác. Xóa
-            dữ liệu trang web trong trình duyệt cũng sẽ xóa các thông tin đã
-            lưu.
+            {appConfig.dataSource === "local"
+              ? "Trong chế độ thử cục bộ, dữ liệu được lưu bằng IndexedDB trên trình duyệt này và không đồng bộ sang thiết bị khác."
+              : "Thông tin tài khoản, phòng, tin đăng, hóa đơn và cuộc trò chuyện được lưu trên máy chủ. Ảnh được lưu riêng và chỉ được truy cập theo quyền của người dùng."}
           </p>
           <h2>Tài khoản và bảo mật</h2>
           <p>
-            Đây là bản frontend phục vụ trải nghiệm và phát triển. Phân quyền
-            trên giao diện và lớp nghiệp vụ không thay thế bảo mật máy chủ. Chỉ
-            dùng dữ liệu thử; không nhập mật khẩu, tài liệu hoặc thông tin tài
-            chính nhạy cảm đang sử dụng thật.
+            {appConfig.dataSource === "local"
+              ? "Chế độ cục bộ phục vụ thử nghiệm, không thay thế xác thực và phân quyền máy chủ."
+              : "Mật khẩu được băm trước khi lưu. Phiên đăng nhập dùng cookie HttpOnly. Chủ trọ chỉ quản lý tài sản của mình; người thuê chỉ xem hồ sơ, hóa đơn và hội thoại liên quan."}
           </p>
           <h2>Ảnh và vị trí</h2>
           <p>
             Ảnh đồng hồ được xử lý trên trình duyệt bằng Tesseract. Mô hình OCR
-            có thể được tải từ CDN trong lần đầu. Bản đồ tải ô bản đồ từ
-            OpenStreetMap. Vị trí chỉ được lấy sau khi bạn chọn Gần tôi và cấp
-            quyền cho trình duyệt.
+            có thể được tải từ CDN trong lần đầu. Tìm phòng bằng cách chọn
+            tỉnh/thành phố, quận/huyện và phường/xã; không cần cấp quyền định
+            vị.
           </p>
           <h2>Kiểm soát dữ liệu</h2>
           <p>
-            Bạn có thể đăng xuất, đổi mật khẩu thử nghiệm hoặc xóa dữ liệu của
-            trang trong cài đặt trình duyệt. Khi chuyển sang backend, cần triển
-            khai chính sách lưu giữ, yêu cầu xóa dữ liệu và xác minh email hoặc
-            số điện thoại ở máy chủ.
+            Bạn có thể cập nhật hồ sơ, đổi mật khẩu và xác minh thông tin liên
+            hệ trong Tài khoản. Thay đổi mật khẩu thu hồi các phiên cũ. Liên hệ
+            quản trị viên khi cần xử lý hoặc xóa thông tin đã lưu; dữ liệu hóa
+            đơn và lịch sử thuê cần được đối chiếu trước khi xử lý.
           </p>
         </>
       ) : page === "/guide" ? (
         <>
           <h2>Khách và người tìm thuê</h2>
           <p>
-            Chọn khu vực, thành phố và ngân sách trên trang Khám phá phòng. Dùng
-            Gần tôi để sắp xếp theo khoảng cách; chọn biểu tượng bản đồ để xem
-            vị trí. Đăng nhập tài khoản người thuê để lưu phòng, nhắn tin, đặt
+            Chọn tỉnh/thành phố, rồi thu hẹp theo quận/huyện và phường/xã trên
+            trang Khám phá phòng. Có thể kết hợp ngân sách, tiện ích và tên
+            đường. Đăng nhập tài khoản người thuê để lưu phòng, nhắn tin, đặt
             lịch hoặc gửi yêu cầu thuê.
           </p>
           <h2>Người thuê đang ở</h2>
@@ -80,13 +77,18 @@ export default function InfoPage({ page }: { page: string }) {
             cáo và cập nhật cấu hình gợi ý. Nhật ký ghi lại những thao tác thay
             đổi dữ liệu.
           </p>
-          <h2>Tài khoản mẫu</h2>
-          <p>
-            Mở trang Đăng nhập và chọn vai trò mẫu. Email: admin@trogon.demo,
-            chutro@trogon.demo hoặc nguoithue@trogon.demo. Mật khẩu chung cho dữ
-            liệu khởi tạo: {appConfig.demoPassword}. Dữ liệu và liên hệ trên các
-            phòng mẫu chỉ dùng minh họa.
-          </p>
+          {appConfig.dataSource === "local" && (
+            <>
+              <h2>Tài khoản mẫu</h2>
+              <p>
+                Mở trang Đăng nhập và chọn vai trò mẫu. Email:
+                admin@trogon.demo, chutro@trogon.demo hoặc
+                nguoithue@trogon.demo. Mật khẩu chung cho dữ liệu khởi tạo:{" "}
+                {appConfig.demoPassword}. Dữ liệu và liên hệ trên các phòng mẫu
+                chỉ dùng minh họa.
+              </p>
+            </>
+          )}
         </>
       ) : (
         <>
@@ -97,12 +99,12 @@ export default function InfoPage({ page }: { page: string }) {
             ở và hóa đơn; người thuê có nơi xem các thông tin liên quan đến
             mình.
           </p>
-          <h2>Bản frontend cho phát triển</h2>
+          <h2>Quản lý cùng một hệ thống</h2>
           <p>
-            Ứng dụng hiện cung cấp các luồng tương tác bằng dữ liệu cục bộ, với
-            lớp dịch vụ riêng để tích hợp API sau này. Phòng, ảnh và liên hệ mẫu
-            không phải nguồn cung đang chào thuê thật. Xem hướng dẫn và chính
-            sách riêng tư trước khi trải nghiệm.
+            Từ đăng tin, trao đổi, xác nhận thuê đến theo dõi điện nước và hóa
+            đơn, các bước được liên kết với tài khoản của bạn. Xem hướng dẫn sử
+            dụng để biết cách tạo phòng, theo dõi khoản thu và gửi yêu cầu hỗ
+            trợ.
           </p>
           <a className="btn primary" href="#/">
             Khám phá TrọGọn
